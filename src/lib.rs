@@ -26,10 +26,10 @@ pub type SimpleResult<T> = Result<T, SimpleError>;
 /// An error type that is used when there is no kind.
 pub type SimpleError = UniError<()>;
 
-/// An error type that is used as a cause when UniKind isn't T.
+/// An error type that is used as a cause when `UniKind` isn't `T`.
 pub type UnknownUniError = UniError<Box<dyn UniKind>>;
 
-// *** UniKind ***
+// *** UniKind trait ***
 
 /// A trait that specifies a custom error kind. Any specified to facilitate downcasting.
 pub trait UniKind: Any + Send + Sync {
@@ -65,14 +65,14 @@ impl UniKind for Box<dyn UniKind> {
     }
 }
 
-// *** "My" traits ***
+// *** Enriched traits ***
 
-/// Standard Error trait with Any to allow downcasting.
+/// Standard `Error` trait with `Any` to allow downcasting.
 pub trait UniStdError: Error + Any + Send + Sync {}
 
 impl<T> UniStdError for T where T: Error + Any + Send + Sync {}
 
-/// Standard Display trait with Any to allow downcasting.
+/// Standard `Display` trait with `Any` to allow downcasting.
 pub trait UniDisplay: Display + Any + Send + Sync {}
 
 impl<T> UniDisplay for T where T: Display + Any + Send + Sync {}
@@ -89,7 +89,7 @@ pub enum Cause<T> {
 }
 
 impl<T: UniKind> Cause<T> {
-    /// Attempts to obtain a reference to the specific kind when not T.
+    /// Attempts to obtain a reference to the specific kind when not `T`.
     pub fn unknown_kind<U: UniKind>(&self) -> Option<&U> {
         match self {
             Cause::UnknownUniError(err) => {
@@ -104,7 +104,7 @@ impl<T: UniKind> Cause<T> {
         }
     }
 
-    /// Attempts to downcast the cause to a specific Error type.
+    /// Attempts to downcast the cause to a specific `Error` type.
     pub fn as_error_type<U: UniStdError>(&self) -> Option<&U> {
         match self {
             Cause::StdError(err) => {
@@ -118,7 +118,7 @@ impl<T: UniKind> Cause<T> {
         }
     }
 
-    /// Attempts to downcast the cause to a specific Display type.
+    /// Attempts to downcast the cause to a specific `Display` type.
     pub fn as_display_type<U: UniDisplay>(&self) -> Option<&U> {
         match self {
             Cause::Display(err) => {
@@ -187,17 +187,17 @@ impl<T: UniKind> UniError<T> {
         }
     }
 
-    /// Creates a new UniError with a default kind, the provided context, and no cause.
+    /// Creates a new `UniError` with a default kind, the provided context, and no cause.
     pub fn from_context(context: impl Into<Cow<'static, str>>) -> Self {
         Self::new(UniKind::default(), Some(context.into()), None)
     }
 
-    /// Creates a new UniError with the provided kind and no context or cause.
+    /// Creates a new `UniError` with the provided kind and no context or cause.
     pub fn from_kind(kind: T) -> Self {
         Self::new(kind, None, None)
     }
 
-    /// Creates a new UniError with the provided kind, the provided context, and no cause.
+    /// Creates a new `UniError` with the provided kind, the provided context, and no cause.
     pub fn from_kind_context(kind: T, context: impl Into<Cow<'static, str>>) -> Self {
         Self::new(kind, Some(context.into()), None)
     }
@@ -382,12 +382,12 @@ impl<T: UniKind, U, E: UniStdError> ResultContext<T, U, E> for Result<U, E> {
 
 // *** ErrorContextDisplay ***
 
-/// A trait for wrapping an existing error with a additional context (for Display types).
+/// A trait for wrapping an existing error with a additional context (for `Display` types).
 pub trait ErrorContextDisplay<T> {
-    /// Wraps the existing error with the provided kind (for Display types).
+    /// Wraps the existing error with the provided kind (for `Display` types).
     fn with_kind_display(self, kind: T) -> UniError<T>;
 
-    /// Wraps the existing error with the provided context (for Display types).
+    /// Wraps the existing error with the provided context (for `Display` types).
     fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniError<T>;
 
     /// Wraps the existing error with the provided kind and context (for Display types).
@@ -397,7 +397,7 @@ pub trait ErrorContextDisplay<T> {
         context: impl Into<Cow<'static, str>>,
     ) -> UniError<T>;
 
-    /// Wraps the existing error with no additional context (for Display types).
+    /// Wraps the existing error with no additional context (for `Display` types).
     fn wrap_display(self) -> UniError<T>;
 }
 
@@ -437,22 +437,22 @@ impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
 
 // *** ResultContextDisplay ***
 
-/// A trait for wrapping an existing result error with a additional context (for Display types).
+/// A trait for wrapping an existing result error with a additional context (for `Display` types).
 pub trait ResultContextDisplay<T, U, E> {
-    /// Wraps the existing result error with the provided kind (for Display types).
+    /// Wraps the existing result error with the provided kind (for `Display` types).
     fn with_kind_display(self, kind: T) -> UniResult<U, T>;
 
-    /// Wraps the existing result error with the provided context (for Display types).
+    /// Wraps the existing result error with the provided context (for `Display` types).
     fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T>;
 
-    /// Wraps the existing result error with the provided kind and context (for Display types).
+    /// Wraps the existing result error with the provided kind and context (for `Display` types).
     fn with_kind_context_display(
         self,
         kind: T,
         context: impl Into<Cow<'static, str>>,
     ) -> UniResult<U, T>;
 
-    /// Wraps the existing result error with no additional context (for Display types).
+    /// Wraps the existing result error with no additional context (for `Display` types).
     fn wrap_display(self) -> UniResult<U, T>;
 }
 
