@@ -3,6 +3,8 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
+#[cfg(not(feature = "std"))]
+use alloc::{borrow::Cow, boxed::Box, sync::Arc};
 use core::{
     any::{Any, type_name},
     error::Error,
@@ -10,10 +12,7 @@ use core::{
     result::Result,
 };
 #[cfg(feature = "std")]
-use std::borrow::Cow;
-
-#[cfg(not(feature = "std"))]
-use {alloc::borrow::Cow, alloc::boxed::Box};
+use std::{borrow::Cow, sync::Arc};
 
 // *** Type aliases ***
 
@@ -310,15 +309,15 @@ struct UniErrorInner<T> {
 }
 
 /// A custom error type that can be used to return an error with a custom error kind.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct UniError<T> {
-    inner: Box<UniErrorInner<T>>,
+    inner: Arc<UniErrorInner<T>>,
 }
 
 impl<T: UniKind> UniError<T> {
     fn new(kind: T, context: Option<Cow<'static, str>>, cause: Option<CauseInner<T>>) -> Self {
         Self {
-            inner: Box::new(UniErrorInner {
+            inner: Arc::new(UniErrorInner {
                 kind,
                 context,
                 cause,
