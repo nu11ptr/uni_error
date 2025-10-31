@@ -33,7 +33,7 @@ pub type DynResult<T> = Result<T, DynError>;
 pub type SimpleError = UniError<()>;
 
 /// An error type that is used as a cause when `UniKind` isn't `T`.
-pub type DynError = Arc<dyn UniErrorTrait + Send + Sync>;
+pub type DynError = Box<dyn UniErrorTrait + Send + Sync>;
 
 // *** UniKind trait ***
 
@@ -298,21 +298,17 @@ impl<T: UniKind> UniError<T> {
 
     fn build_uni_error_cause(cause: Box<dyn Any>) -> CauseInner {
         let dyn_error: DynError = if cause.is::<SimpleError>() {
-            Arc::new(
-                *cause
-                    .downcast::<SimpleError>()
-                    .expect("cause is not a SimpleError"),
-            )
+            cause
+                .downcast::<SimpleError>()
+                .expect("cause is not a SimpleError")
         } else if cause.is::<DynError>() {
             *cause
                 .downcast::<DynError>()
                 .expect("cause is not a DynError")
         } else if cause.is::<UniError<T>>() {
-            Arc::new(
-                *cause
-                    .downcast::<UniError<T>>()
-                    .expect("cause is not a UniError<T>"),
-            )
+            cause
+                .downcast::<UniError<T>>()
+                .expect("cause is not a UniError<T>")
         } else {
             unreachable!("cause is not a SimpleError, DynError, or UniError<T>");
         };
@@ -338,7 +334,7 @@ impl<T: UniKind> UniError<T> {
     }
 
     fn build_cause<U: UniKind>(cause: UniError<U>) -> CauseInner {
-        CauseInner::UniError(Arc::new(cause))
+        CauseInner::UniError(Box::new(cause))
     }
 
     /// Returns a reference to the custom kind.
@@ -437,6 +433,12 @@ impl<T: UniKind> AsRef<dyn Error + Sync + Send> for UniError<T> {
 impl<T: UniKind, E: UniStdError> From<E> for UniError<T> {
     fn from(err: E) -> Self {
         ErrorContext::wrap(err)
+    }
+}
+
+impl<E: UniErrorTrait> From<E> for DynError {
+    fn from(err: E) -> Self {
+        Box::new(err)
     }
 }
 
