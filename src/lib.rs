@@ -39,31 +39,34 @@ pub type DynError = Box<dyn UniErrorTrait + Send + Sync>;
 
 /// A trait that specifies a custom error kind. Any specified to facilitate downcasting.
 pub trait UniKind: Debug + Any + Send + Sync {
-    /// Returns the default kind.
-    fn default() -> Self
-    where
-        Self: Sized;
-
     // The string value of the kind, if any. This is useful for programmatic evaluation
     // when the type is boxed in the error chain and the type is not known.
-    fn str_value(&self) -> &str {
+    fn kind_value(&self) -> &str {
         ""
     }
 
     /// Returns additional context for this specific kind, if any.
-    fn context(&self) -> Option<&str> {
+    fn kind_context(&self) -> Option<&str> {
         None
     }
 
     /// Returns the code (typically for FFI) for this specific kind. Defaults to -1.
-    fn code(&self) -> i32 {
+    fn kind_code(&self) -> i32 {
         -1
+    }
+
+    // Return a trait object reference to the kind
+    fn kind_obj_ref(&self) -> &dyn UniKind
+    where
+        Self: Sized,
+    {
+        self
     }
 }
 
 impl dyn UniKind {
     /// The string name of the type implementing this trait.
-    pub fn type_name(&self) -> &str {
+    pub fn kind_type_name(&self) -> &str {
         type_name::<Self>()
     }
 
@@ -72,11 +75,7 @@ impl dyn UniKind {
     }
 }
 
-impl UniKind for () {
-    fn default() -> Self {
-        Default::default()
-    }
-}
+impl UniKind for () {}
 
 // *** Enriched traits ***
 
@@ -233,7 +232,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
             write!(f, "{}", context)?;
         }
 
-        if let Some(context) = self.kind.context() {
+        if let Some(context) = self.kind.kind_context() {
             if self.context.is_some() {
                 write!(f, ": ")?;
             }
@@ -241,7 +240,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
         }
 
         if let Some(cause) = &self.prev_cause() {
-            if self.context.is_some() || self.kind.context().is_some() {
+            if self.context.is_some() || self.kind.kind_context().is_some() {
                 write!(f, ": ")?;
             }
             write!(f, "{}", cause)?;
@@ -270,6 +269,13 @@ pub struct UniError<T> {
     inner: Arc<UniErrorInner<T>>,
 }
 
+impl<T: UniKind + Default> UniError<T> {
+    /// Creates a new `UniError` with a default kind, the provided context, and no cause.
+    pub fn from_context(context: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(Default::default(), Some(context.into()), None)
+    }
+}
+
 impl<T: UniKind> UniError<T> {
     fn new(kind: T, context: Option<Cow<'static, str>>, cause: Option<CauseInner>) -> Self {
         Self {
@@ -279,11 +285,6 @@ impl<T: UniKind> UniError<T> {
                 cause,
             }),
         }
-    }
-
-    /// Creates a new `UniError` with a default kind, the provided context, and no cause.
-    pub fn from_context(context: impl Into<Cow<'static, str>>) -> Self {
-        Self::new(UniKind::default(), Some(context.into()), None)
     }
 
     /// Creates a new `UniError` with the provided kind and no context or cause.
@@ -351,13 +352,8 @@ impl<T: Copy> UniError<T> {
 }
 
 pub trait UniErrorTrait:
-    Debug + Display + Any + Deref<Target = dyn Error + Send + Sync + 'static> + Send + Sync
+    UniKind + Debug + Display + Any + Deref<Target = dyn Error + Send + Sync + 'static> + Send + Sync
 {
-    /// Returns the code (typically for FFI) for the custom kind.
-    fn kind_code(&self) -> i32;
-
-    fn kind_str_value(&self) -> &str;
-
     fn kind_obj_ref(&self) -> &dyn UniKind;
 
     /// Returns a reference to the first entry in the cause chain.
@@ -371,14 +367,6 @@ pub trait UniErrorTrait:
 }
 
 impl<T: UniKind> UniErrorTrait for UniError<T> {
-    fn kind_code(&self) -> i32 {
-        self.kind_ref().code()
-    }
-
-    fn kind_str_value(&self) -> &str {
-        self.kind_ref().str_value()
-    }
-
     fn kind_obj_ref(&self) -> &dyn UniKind {
         self.kind_ref()
     }
@@ -404,11 +392,7 @@ impl<T: UniKind> UniErrorTrait for UniError<T> {
     }
 }
 
-impl dyn UniErrorTrait {
-    pub fn kind_type_name(&self) -> &str {
-        self.kind_obj_ref().type_name()
-    }
-}
+impl<T: UniKind> UniKind for UniError<T> {}
 
 impl<T: UniKind> Display for UniError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -430,7 +414,7 @@ impl<T: UniKind> AsRef<dyn Error + Sync + Send> for UniError<T> {
     }
 }
 
-impl<T: UniKind, E: UniStdError> From<E> for UniError<T> {
+impl<T: UniKind + Default, E: UniStdError> From<E> for UniError<T> {
     fn from(err: E) -> Self {
         ErrorContext::wrap(err)
     }
@@ -459,14 +443,14 @@ pub trait ErrorContext<T> {
     fn wrap(self) -> UniError<T>;
 }
 
-impl<T: UniKind, E: UniStdError> ErrorContext<T> for E {
+impl<T: UniKind + Default, E: UniStdError> ErrorContext<T> for E {
     fn with_kind(self, kind: T) -> UniError<T> {
         UniError::new(kind, None, Some(UniError::<T>::build_cause_error(self)))
     }
 
     fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
-            UniKind::default(),
+            Default::default(),
             Some(context.into()),
             Some(UniError::<T>::build_cause_error(self)),
         )
@@ -482,21 +466,21 @@ impl<T: UniKind, E: UniStdError> ErrorContext<T> for E {
 
     fn wrap(self) -> UniError<T> {
         UniError::new(
-            UniKind::default(),
+            Default::default(),
             None,
             Some(UniError::<T>::build_cause_error(self)),
         )
     }
 }
 
-impl<T: UniKind, U: UniKind> ErrorContext<T> for UniError<U> {
+impl<T: UniKind + Default, U: UniKind> ErrorContext<T> for UniError<U> {
     fn with_kind(self, kind: T) -> UniError<T> {
         UniError::new(kind, None, Some(UniError::<T>::build_cause(self)))
     }
 
     fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
-            UniKind::default(),
+            Default::default(),
             Some(context.into()),
             Some(UniError::<T>::build_cause(self)),
         )
@@ -512,7 +496,7 @@ impl<T: UniKind, U: UniKind> ErrorContext<T> for UniError<U> {
 
     fn wrap(self) -> UniError<T> {
         UniError::new(
-            UniKind::default(),
+            Default::default(),
             None,
             Some(UniError::<T>::build_cause(self)),
         )
@@ -536,7 +520,7 @@ pub trait ResultContext<T, U, E> {
     fn wrap(self) -> UniResult<U, T>;
 }
 
-impl<T: UniKind, U, E: UniStdError> ResultContext<T, U, E> for Result<U, E> {
+impl<T: UniKind + Default, U, E: UniStdError> ResultContext<T, U, E> for Result<U, E> {
     fn with_kind(self, kind: T) -> UniResult<U, T> {
         self.map_err(|err| err.with_kind(kind))
     }
@@ -554,7 +538,7 @@ impl<T: UniKind, U, E: UniStdError> ResultContext<T, U, E> for Result<U, E> {
     }
 }
 
-impl<T: UniKind, U: UniKind, V> ResultContext<U, V, T> for UniResult<V, T> {
+impl<T: UniKind + Default, U: UniKind + Default, V> ResultContext<U, V, T> for UniResult<V, T> {
     fn with_kind(self, kind: U) -> UniResult<V, U> {
         self.map_err(|err| err.with_kind(kind))
     }
@@ -577,40 +561,32 @@ impl<T: UniKind, U: UniKind, V> ResultContext<U, V, T> for UniResult<V, T> {
 /// A trait for wrapping an existing error with a additional context (for `Display` types).
 pub trait ErrorContextDisplay<T> {
     /// Wraps the existing error with the provided kind (for `Display` types).
-    fn with_kind_display(self, kind: T) -> UniError<T>;
+    fn with_kind_disp(self, kind: T) -> UniError<T>;
 
     /// Wraps the existing error with the provided context (for `Display` types).
-    fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniError<T>;
+    fn with_context_disp(self, context: impl Into<Cow<'static, str>>) -> UniError<T>;
 
     /// Wraps the existing error with the provided kind and context (for Display types).
-    fn with_kind_context_display(
-        self,
-        kind: T,
-        context: impl Into<Cow<'static, str>>,
-    ) -> UniError<T>;
+    fn with_kind_context_disp(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniError<T>;
 
     /// Wraps the existing error with no additional context (for `Display` types).
-    fn wrap_display(self) -> UniError<T>;
+    fn wrap_disp(self) -> UniError<T>;
 }
 
-impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
-    fn with_kind_display(self, kind: T) -> UniError<T> {
+impl<T: UniKind + Default, E: UniDisplay> ErrorContextDisplay<T> for E {
+    fn with_kind_disp(self, kind: T) -> UniError<T> {
         UniError::new(kind, None, Some(UniError::<T>::build_cause_display(self)))
     }
 
-    fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
+    fn with_context_disp(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
-            UniKind::default(),
+            Default::default(),
             Some(context.into()),
             Some(UniError::<T>::build_cause_display(self)),
         )
     }
 
-    fn with_kind_context_display(
-        self,
-        kind: T,
-        context: impl Into<Cow<'static, str>>,
-    ) -> UniError<T> {
+    fn with_kind_context_disp(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
             kind,
             Some(context.into()),
@@ -618,9 +594,9 @@ impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
         )
     }
 
-    fn wrap_display(self) -> UniError<T> {
+    fn wrap_disp(self) -> UniError<T> {
         UniError::new(
-            UniKind::default(),
+            Default::default(),
             None,
             Some(UniError::<T>::build_cause_display(self)),
         )
@@ -632,41 +608,41 @@ impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
 /// A trait for wrapping an existing result error with a additional context (for `Display` types).
 pub trait ResultContextDisplay<T, U, E> {
     /// Wraps the existing result error with the provided kind (for `Display` types).
-    fn with_kind_display(self, kind: T) -> UniResult<U, T>;
+    fn with_kind_disp(self, kind: T) -> UniResult<U, T>;
 
     /// Wraps the existing result error with the provided context (for `Display` types).
-    fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T>;
+    fn with_context_disp(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T>;
 
     /// Wraps the existing result error with the provided kind and context (for `Display` types).
-    fn with_kind_context_display(
+    fn with_kind_context_disp(
         self,
         kind: T,
         context: impl Into<Cow<'static, str>>,
     ) -> UniResult<U, T>;
 
     /// Wraps the existing result error with no additional context (for `Display` types).
-    fn wrap_display(self) -> UniResult<U, T>;
+    fn wrap_disp(self) -> UniResult<U, T>;
 }
 
-impl<T: UniKind, U, E: UniDisplay> ResultContextDisplay<T, U, E> for Result<U, E> {
-    fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
-        self.map_err(|err| err.with_context_display(context))
+impl<T: UniKind + Default, U, E: UniDisplay> ResultContextDisplay<T, U, E> for Result<U, E> {
+    fn with_context_disp(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
+        self.map_err(|err| err.with_context_disp(context))
     }
 
-    fn with_kind_display(self, kind: T) -> UniResult<U, T> {
-        self.map_err(|err| err.with_kind_display(kind))
+    fn with_kind_disp(self, kind: T) -> UniResult<U, T> {
+        self.map_err(|err| err.with_kind_disp(kind))
     }
 
-    fn with_kind_context_display(
+    fn with_kind_context_disp(
         self,
         kind: T,
         context: impl Into<Cow<'static, str>>,
     ) -> UniResult<U, T> {
-        self.map_err(|err| err.with_kind_context_display(kind, context))
+        self.map_err(|err| err.with_kind_context_disp(kind, context))
     }
 
-    fn wrap_display(self) -> UniResult<U, T> {
-        self.map_err(|err| err.wrap_display())
+    fn wrap_disp(self) -> UniResult<U, T> {
+        self.map_err(|err| err.wrap_disp())
     }
 }
 
@@ -690,16 +666,13 @@ mod tests {
         Ok(())
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, Default)]
     enum TestKind {
+        #[default]
         Test,
     }
 
-    impl UniKind for TestKind {
-        fn default() -> Self {
-            TestKind::Test
-        }
-    }
+    impl UniKind for TestKind {}
 
     #[test]
     fn test_simple_error() {
