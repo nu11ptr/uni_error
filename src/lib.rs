@@ -6,7 +6,7 @@ extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::{borrow::Cow, boxed::Box, sync::Arc};
 use core::{
-    any::{Any, type_name},
+    any::{Any, TypeId, type_name},
     error::Error,
     fmt::{Debug, Display},
     ops::Deref,
@@ -32,11 +32,8 @@ pub type DynResult<T> = Result<T, DynError>;
 /// An error type that is used when there is no kind.
 pub type SimpleError = UniError<()>;
 
-/// A type that is used as a cause when `UniKind` isn't `T`.
-pub type DynKind = Box<dyn UniKind>;
-
 /// An error type that is used as a cause when `UniKind` isn't `T`.
-pub type DynError = UniError<DynKind>;
+pub type DynError = Arc<dyn UniErrorTrait + Send + Sync>;
 
 // *** UniKind trait ***
 
@@ -66,32 +63,18 @@ pub trait UniKind: Debug + Any + Send + Sync {
 
 impl dyn UniKind {
     /// The string name of the type implementing this trait.
-    fn type_name(&self) -> &str {
+    pub fn type_name(&self) -> &str {
         type_name::<Self>()
+    }
+
+    pub fn is_same_type<U: UniKind>(&self) -> bool {
+        self.type_id() == TypeId::of::<U>()
     }
 }
 
 impl UniKind for () {
     fn default() -> Self {
         Default::default()
-    }
-}
-
-impl UniKind for DynKind {
-    fn default() -> Self {
-        unreachable!("Cannot create a default kind for a Box<dyn UniKind>");
-    }
-
-    fn str_value(&self) -> &str {
-        self.as_ref().str_value()
-    }
-
-    fn context(&self) -> Option<&str> {
-        self.as_ref().context()
-    }
-
-    fn code(&self) -> i32 {
-        self.as_ref().code()
     }
 }
 
@@ -122,9 +105,9 @@ impl<T> UniDisplay for T where T: Display + Debug + Any + Send + Sync {}
 
 // *** Cause ***
 
-impl<'e, T> Copy for Cause<'e, T> {}
+impl<'e> Copy for Cause<'e> {}
 
-impl<'e, T> Clone for Cause<'e, T> {
+impl<'e> Clone for Cause<'e> {
     fn clone(&self) -> Self {
         *self
     }
@@ -132,34 +115,19 @@ impl<'e, T> Clone for Cause<'e, T> {
 
 /// The cause of an error.
 #[derive(Debug)]
-pub enum Cause<'e, T> {
-    SimpleError(&'e SimpleError),
-    UniError(&'e UniError<T>),
-    DynError(&'e DynError),
+pub enum Cause<'e> {
+    UniError(&'e DynError),
     UniStdError(&'e dyn UniStdError),
     StdError(&'e (dyn Error + 'static)),
     UniDisplay(&'e dyn UniDisplay),
 }
 
-impl<'e, T: UniKind> Cause<'e, T> {
-    fn from_inner(inner: &'e CauseInner<T>) -> Cause<'e, T> {
+impl<'e> Cause<'e> {
+    fn from_inner(inner: &'e CauseInner) -> Cause<'e> {
         match inner {
-            CauseInner::SimpleError(err) => Cause::SimpleError(err),
             CauseInner::UniError(err) => Cause::UniError(err),
-            CauseInner::DynError(err) => Cause::DynError(err),
             CauseInner::UniStdError(err) => Cause::UniStdError(&**err),
             CauseInner::UniDisplay(err) => Cause::UniDisplay(err),
-        }
-    }
-
-    /// Attempts to obtain a reference to the specific kind when not `T`.
-    pub fn dyn_kind<U: UniKind>(&self) -> Option<&U> {
-        match self {
-            Cause::DynError(err) => {
-                let kind: &dyn Any = &**err.kind_ref();
-                kind.downcast_ref::<U>()
-            }
-            _ => None,
         }
     }
 
@@ -181,28 +149,10 @@ impl<'e, T: UniKind> Cause<'e, T> {
     }
 
     // Returns the next cause in the chain, if any.
-    pub fn next(self) -> Option<Cause<'e, T>> {
+    pub fn next(self) -> Option<Cause<'e>> {
         match self {
-            Cause::SimpleError(err) => err.prev_cause().map(|cause| match cause {
-                Cause::SimpleError(err) => Cause::SimpleError(err),
-                Cause::UniError(err) => Cause::SimpleError(err),
-                Cause::DynError(err) => Cause::DynError(err),
-                Cause::UniStdError(err) => Cause::UniStdError(err),
-                Cause::StdError(err) => Cause::StdError(err),
-                Cause::UniDisplay(err) => Cause::UniDisplay(err),
-            }),
             Cause::UniError(err) => err.prev_cause().map(|cause| match cause {
-                Cause::SimpleError(err) => Cause::SimpleError(err),
                 Cause::UniError(err) => Cause::UniError(err),
-                Cause::DynError(err) => Cause::DynError(err),
-                Cause::UniStdError(err) => Cause::UniStdError(err),
-                Cause::StdError(err) => Cause::StdError(err),
-                Cause::UniDisplay(err) => Cause::UniDisplay(err),
-            }),
-            Cause::DynError(err) => err.prev_cause().map(|cause| match cause {
-                Cause::SimpleError(err) => Cause::SimpleError(err),
-                Cause::UniError(err) => Cause::DynError(err),
-                Cause::DynError(err) => Cause::DynError(err),
                 Cause::UniStdError(err) => Cause::UniStdError(err),
                 Cause::StdError(err) => Cause::StdError(err),
                 Cause::UniDisplay(err) => Cause::UniDisplay(err),
@@ -214,12 +164,10 @@ impl<'e, T: UniKind> Cause<'e, T> {
     }
 }
 
-impl<'e, T: UniKind> Display for Cause<'e, T> {
+impl<'e> Display for Cause<'e> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
-            Cause::SimpleError(err) => <SimpleError as Display>::fmt(err, f),
-            Cause::UniError(err) => <UniError<T> as Display>::fmt(err, f),
-            Cause::DynError(err) => <DynError as Display>::fmt(err, f),
+            Cause::UniError(err) => <DynError as Display>::fmt(err, f),
             Cause::UniStdError(err) => <dyn UniStdError as Display>::fmt(err, f),
             Cause::StdError(err) => <dyn Error as Display>::fmt(err, f),
             Cause::UniDisplay(err) => <dyn UniDisplay as Display>::fmt(err, f),
@@ -227,12 +175,10 @@ impl<'e, T: UniKind> Display for Cause<'e, T> {
     }
 }
 
-impl<'e, T: UniKind> Error for Cause<'e, T> {
+impl<'e> Error for Cause<'e> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Cause::SimpleError(err) => err.source(),
             Cause::UniError(err) => err.source(),
-            Cause::DynError(err) => err.source(),
             Cause::UniStdError(err) => err.source(),
             Cause::StdError(err) => err.source(),
             Cause::UniDisplay(_) => None,
@@ -243,12 +189,12 @@ impl<'e, T: UniKind> Error for Cause<'e, T> {
 // *** Chain ***
 
 /// An iterator over the cause chain of an error.
-pub struct Chain<'e, T: UniKind> {
-    curr: Option<Cause<'e, T>>,
+pub struct Chain<'e> {
+    curr: Option<Cause<'e>>,
 }
 
-impl<'e, T: UniKind> Iterator for Chain<'e, T> {
-    type Item = Cause<'e, T>;
+impl<'e> Iterator for Chain<'e> {
+    type Item = Cause<'e>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let curr = self.curr?;
@@ -257,27 +203,26 @@ impl<'e, T: UniKind> Iterator for Chain<'e, T> {
     }
 }
 
-// *** UniError ***
+// *** CauseInner ***
 
 #[derive(Debug)]
-enum CauseInner<T> {
-    SimpleError(SimpleError),
-    UniError(UniError<T>),
-    #[allow(dead_code)]
-    DynError(DynError),
+enum CauseInner {
+    UniError(DynError),
     UniStdError(Box<dyn UniStdError + Send + Sync>),
     UniDisplay(Box<dyn UniDisplay + Send + Sync>),
 }
+
+// *** UniErrorInner ***
 
 #[derive(Debug)]
 struct UniErrorInner<T> {
     kind: T,
     context: Option<Cow<'static, str>>,
-    cause: Option<CauseInner<T>>,
+    cause: Option<CauseInner>,
 }
 
 impl<T: UniKind> UniErrorInner<T> {
-    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e, T>> {
+    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
         self.cause.as_ref().map(|inner| Cause::from_inner(inner))
     }
 }
@@ -309,15 +254,15 @@ impl<T: UniKind> Display for UniErrorInner<T> {
 impl<T: UniKind> Error for UniErrorInner<T> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self.prev_cause() {
-            Some(Cause::SimpleError(err)) => Some(&err.inner),
-            Some(Cause::UniError(err)) => Some(&err.inner),
-            Some(Cause::DynError(err)) => Some(&err.inner),
+            Some(Cause::UniError(err)) => Some(&***err),
             Some(Cause::UniStdError(err)) => Some(err),
             Some(Cause::StdError(err)) => Some(err),
             Some(Cause::UniDisplay(_)) | None => None,
         }
     }
 }
+
+// *** UniError ***
 
 /// A custom error type that can be used to return an error with a custom error kind.
 #[derive(Clone, Debug)]
@@ -326,7 +271,7 @@ pub struct UniError<T> {
 }
 
 impl<T: UniKind> UniError<T> {
-    fn new(kind: T, context: Option<Cow<'static, str>>, cause: Option<CauseInner<T>>) -> Self {
+    fn new(kind: T, context: Option<Cow<'static, str>>, cause: Option<CauseInner>) -> Self {
         Self {
             inner: Arc::new(UniErrorInner {
                 kind,
@@ -351,79 +296,54 @@ impl<T: UniKind> UniError<T> {
         Self::new(kind, Some(context.into()), None)
     }
 
-    fn build_kind_error_cause(cause: Box<dyn Any>, is_simple_error: bool) -> CauseInner<T> {
-        if is_simple_error {
-            CauseInner::SimpleError(
+    fn build_uni_error_cause(cause: Box<dyn Any>) -> CauseInner {
+        let dyn_error: DynError = if cause.is::<SimpleError>() {
+            Arc::new(
                 *cause
                     .downcast::<SimpleError>()
                     .expect("cause is not a SimpleError"),
             )
-        } else {
-            CauseInner::UniError(
+        } else if cause.is::<DynError>() {
+            *cause
+                .downcast::<DynError>()
+                .expect("cause is not a DynError")
+        } else if cause.is::<UniError<T>>() {
+            Arc::new(
                 *cause
                     .downcast::<UniError<T>>()
                     .expect("cause is not a UniError<T>"),
             )
-        }
+        } else {
+            unreachable!("cause is not a SimpleError, DynError, or UniError<T>");
+        };
+
+        CauseInner::UniError(dyn_error)
     }
 
-    fn build_cause_display(cause: impl UniDisplay) -> CauseInner<T> {
-        let is_simple_error = <dyn Any>::is::<SimpleError>(&cause);
-        let is_kind_error = <dyn Any>::is::<UniError<T>>(&cause);
+    fn build_cause_display(cause: impl UniDisplay) -> CauseInner {
+        let is_uni_error = <dyn Any>::is::<UniError<T>>(&cause)
+            || <dyn Any>::is::<DynError>(&cause)
+            || <dyn Any>::is::<SimpleError>(&cause);
 
-        if is_simple_error || is_kind_error {
-            Self::build_kind_error_cause(Box::new(cause), is_simple_error)
+        // We implement Display, so this might be a UniError
+        if is_uni_error {
+            Self::build_uni_error_cause(Box::new(cause))
         } else {
             CauseInner::UniDisplay(Box::new(cause))
         }
     }
 
-    fn build_cause(cause: impl UniStdError) -> CauseInner<T> {
-        let is_simple_error = <dyn Any>::is::<SimpleError>(&cause);
-        let is_kind_error = <dyn Any>::is::<UniError<T>>(&cause);
+    fn build_cause_error(cause: impl UniStdError) -> CauseInner {
+        CauseInner::UniStdError(Box::new(cause))
+    }
 
-        if is_simple_error || is_kind_error {
-            Self::build_kind_error_cause(Box::new(cause), is_simple_error)
-        } else {
-            CauseInner::UniStdError(Box::new(cause))
-        }
+    fn build_cause<U: UniKind>(cause: UniError<U>) -> CauseInner {
+        CauseInner::UniError(Arc::new(cause))
     }
 
     /// Returns a reference to the custom kind.
     pub fn kind_ref(&self) -> &T {
         &self.inner.kind
-    }
-
-    /// Returns the code (typically for FFI) for the custom kind.
-    pub fn kind_code(&self) -> i32 {
-        self.inner.kind.code()
-    }
-
-    pub fn kind_str_value(&self) -> &str {
-        self.inner.kind.str_value()
-    }
-
-    /// Returns a reference to the first entry in the cause chain.
-    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e, T>> {
-        self.inner.prev_cause()
-    }
-
-    pub fn chain(&self) -> Chain<'_, T> {
-        Chain {
-            curr: self.prev_cause(),
-        }
-    }
-
-    // TODO: Remove Option and make 'self' a possible candidate
-    /// Returns the root cause of this error. If `None` is returned then this error is the root cause.
-    pub fn root_cause(&self) -> Option<Cause<'_, T>> {
-        let mut chain = self.chain();
-        let mut root = chain.next();
-
-        while let Some(next) = chain.next() {
-            root = Some(next);
-        }
-        root
     }
 }
 
@@ -434,9 +354,63 @@ impl<T: Copy> UniError<T> {
     }
 }
 
-impl UniError<DynKind> {
+pub trait UniErrorTrait:
+    Debug + Display + Any + Deref<Target = dyn Error + Send + Sync + 'static> + Send + Sync
+{
+    /// Returns the code (typically for FFI) for the custom kind.
+    fn kind_code(&self) -> i32;
+
+    fn kind_str_value(&self) -> &str;
+
+    fn kind_obj_ref(&self) -> &dyn UniKind;
+
+    /// Returns a reference to the first entry in the cause chain.
+    fn prev_cause<'e>(&'e self) -> Option<Cause<'e>>;
+
+    fn chain(&self) -> Chain<'_>;
+
+    // TODO: Remove Option and make 'self' a possible candidate
+    /// Returns the root cause of this error. If `None` is returned then this error is the root cause.
+    fn root_cause(&self) -> Option<Cause<'_>>;
+}
+
+impl<T: UniKind> UniErrorTrait for UniError<T> {
+    fn kind_code(&self) -> i32 {
+        self.kind_ref().code()
+    }
+
+    fn kind_str_value(&self) -> &str {
+        self.kind_ref().str_value()
+    }
+
+    fn kind_obj_ref(&self) -> &dyn UniKind {
+        self.kind_ref()
+    }
+
+    fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
+        self.inner.prev_cause()
+    }
+
+    fn chain(&self) -> Chain<'_> {
+        Chain {
+            curr: self.prev_cause(),
+        }
+    }
+
+    fn root_cause(&self) -> Option<Cause<'_>> {
+        let mut chain = self.chain();
+        let mut root = chain.next();
+
+        while let Some(next) = chain.next() {
+            root = Some(next);
+        }
+        root
+    }
+}
+
+impl dyn UniErrorTrait {
     pub fn kind_type_name(&self) -> &str {
-        self.inner.kind.type_name()
+        self.kind_obj_ref().type_name()
     }
 }
 
@@ -462,7 +436,7 @@ impl<T: UniKind> AsRef<dyn Error + Sync + Send> for UniError<T> {
 
 impl<T: UniKind, E: UniStdError> From<E> for UniError<T> {
     fn from(err: E) -> Self {
-        UniError::new(UniKind::default(), None, Some(UniError::build_cause(err)))
+        ErrorContext::wrap(err)
     }
 }
 
@@ -485,14 +459,14 @@ pub trait ErrorContext<T> {
 
 impl<T: UniKind, E: UniStdError> ErrorContext<T> for E {
     fn with_kind(self, kind: T) -> UniError<T> {
-        UniError::new(kind, None, Some(UniError::build_cause(self)))
+        UniError::new(kind, None, Some(UniError::<T>::build_cause_error(self)))
     }
 
     fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
             UniKind::default(),
             Some(context.into()),
-            Some(UniError::build_cause(self)),
+            Some(UniError::<T>::build_cause_error(self)),
         )
     }
 
@@ -500,12 +474,46 @@ impl<T: UniKind, E: UniStdError> ErrorContext<T> for E {
         UniError::new(
             kind,
             Some(context.into()),
-            Some(UniError::build_cause(self)),
+            Some(UniError::<T>::build_cause_error(self)),
         )
     }
 
     fn wrap(self) -> UniError<T> {
-        UniError::new(UniKind::default(), None, Some(UniError::build_cause(self)))
+        UniError::new(
+            UniKind::default(),
+            None,
+            Some(UniError::<T>::build_cause_error(self)),
+        )
+    }
+}
+
+impl<T: UniKind, U: UniKind> ErrorContext<T> for UniError<U> {
+    fn with_kind(self, kind: T) -> UniError<T> {
+        UniError::new(kind, None, Some(UniError::<T>::build_cause(self)))
+    }
+
+    fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
+        UniError::new(
+            UniKind::default(),
+            Some(context.into()),
+            Some(UniError::<T>::build_cause(self)),
+        )
+    }
+
+    fn with_kind_context(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniError<T> {
+        UniError::new(
+            kind,
+            Some(context.into()),
+            Some(UniError::<T>::build_cause(self)),
+        )
+    }
+
+    fn wrap(self) -> UniError<T> {
+        UniError::new(
+            UniKind::default(),
+            None,
+            Some(UniError::<T>::build_cause(self)),
+        )
     }
 }
 
@@ -527,12 +535,12 @@ pub trait ResultContext<T, U, E> {
 }
 
 impl<T: UniKind, U, E: UniStdError> ResultContext<T, U, E> for Result<U, E> {
-    fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
-        self.map_err(|err| err.with_context(context))
-    }
-
     fn with_kind(self, kind: T) -> UniResult<U, T> {
         self.map_err(|err| err.with_kind(kind))
+    }
+
+    fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
+        self.map_err(|err| err.with_context(context))
     }
 
     fn with_kind_context(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
@@ -540,6 +548,24 @@ impl<T: UniKind, U, E: UniStdError> ResultContext<T, U, E> for Result<U, E> {
     }
 
     fn wrap(self) -> UniResult<U, T> {
+        self.map_err(|err| err.wrap())
+    }
+}
+
+impl<T: UniKind, U: UniKind, V> ResultContext<U, V, T> for UniResult<V, T> {
+    fn with_kind(self, kind: U) -> UniResult<V, U> {
+        self.map_err(|err| err.with_kind(kind))
+    }
+
+    fn with_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<V, U> {
+        self.map_err(|err| err.with_context(context))
+    }
+
+    fn with_kind_context(self, kind: U, context: impl Into<Cow<'static, str>>) -> UniResult<V, U> {
+        self.map_err(|err| err.with_kind_context(kind, context))
+    }
+
+    fn wrap(self) -> UniResult<V, U> {
         self.map_err(|err| err.wrap())
     }
 }
@@ -567,14 +593,14 @@ pub trait ErrorContextDisplay<T> {
 
 impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
     fn with_kind_display(self, kind: T) -> UniError<T> {
-        UniError::new(kind, None, Some(UniError::build_cause_display(self)))
+        UniError::new(kind, None, Some(UniError::<T>::build_cause_display(self)))
     }
 
     fn with_context_display(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
             UniKind::default(),
             Some(context.into()),
-            Some(UniError::build_cause_display(self)),
+            Some(UniError::<T>::build_cause_display(self)),
         )
     }
 
@@ -586,7 +612,7 @@ impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
         UniError::new(
             kind,
             Some(context.into()),
-            Some(UniError::build_cause_display(self)),
+            Some(UniError::<T>::build_cause_display(self)),
         )
     }
 
@@ -594,7 +620,7 @@ impl<T: UniKind, E: UniDisplay> ErrorContextDisplay<T> for E {
         UniError::new(
             UniKind::default(),
             None,
-            Some(UniError::build_cause_display(self)),
+            Some(UniError::<T>::build_cause_display(self)),
         )
     }
 }
