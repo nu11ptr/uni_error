@@ -9,10 +9,14 @@ use core::{
     any::{Any, type_name},
     error::Error,
     fmt::{Debug, Display},
+    ops::Deref,
     result::Result,
 };
 #[cfg(feature = "std")]
 use std::{borrow::Cow, sync::Arc};
+
+// #[doc = include_str!("../README.md")]
+// mod readme_tests {}
 
 // *** Type aliases ***
 
@@ -127,6 +131,7 @@ impl<'e, T> Clone for Cause<'e, T> {
 }
 
 /// The cause of an error.
+#[derive(Debug)]
 pub enum Cause<'e, T> {
     SimpleError(&'e SimpleError),
     UniError(&'e UniError<T>),
@@ -175,30 +180,6 @@ impl<'e, T: UniKind> Cause<'e, T> {
         err.downcast_ref::<U>()
     }
 
-    fn uni_std_error_as_type(err: &'e dyn UniStdError) -> Cause<'e, T> {
-        if let Some(err) = Self::error_downcast_ref(err) {
-            Cause::SimpleError(err)
-        } else if let Some(err) = Self::error_downcast_ref(err) {
-            Cause::UniError(err)
-        } else if let Some(err) = Self::error_downcast_ref(err) {
-            Cause::DynError(err)
-        } else {
-            Cause::UniStdError(err)
-        }
-    }
-
-    fn std_error_as_type(err: &'e (dyn Error + 'static)) -> Cause<'e, T> {
-        if let Some(err) = err.downcast_ref() {
-            Cause::SimpleError(err)
-        } else if let Some(err) = err.downcast_ref() {
-            Cause::UniError(err)
-        } else if let Some(err) = err.downcast_ref() {
-            Cause::DynError(err)
-        } else {
-            Cause::StdError(err)
-        }
-    }
-
     // Returns the next cause in the chain, if any.
     pub fn next(self) -> Option<Cause<'e, T>> {
         match self {
@@ -206,42 +187,29 @@ impl<'e, T: UniKind> Cause<'e, T> {
                 Cause::SimpleError(err) => Cause::SimpleError(err),
                 Cause::UniError(err) => Cause::SimpleError(err),
                 Cause::DynError(err) => Cause::DynError(err),
-                Cause::UniStdError(err) => Self::uni_std_error_as_type(err),
-                Cause::StdError(err) => Self::std_error_as_type(err),
+                Cause::UniStdError(err) => Cause::UniStdError(err),
+                Cause::StdError(err) => Cause::StdError(err),
                 Cause::UniDisplay(err) => Cause::UniDisplay(err),
             }),
             Cause::UniError(err) => err.prev_cause().map(|cause| match cause {
                 Cause::SimpleError(err) => Cause::SimpleError(err),
                 Cause::UniError(err) => Cause::UniError(err),
                 Cause::DynError(err) => Cause::DynError(err),
-                Cause::UniStdError(err) => Self::uni_std_error_as_type(err),
-                Cause::StdError(err) => Self::std_error_as_type(err),
+                Cause::UniStdError(err) => Cause::UniStdError(err),
+                Cause::StdError(err) => Cause::StdError(err),
                 Cause::UniDisplay(err) => Cause::UniDisplay(err),
             }),
             Cause::DynError(err) => err.prev_cause().map(|cause| match cause {
                 Cause::SimpleError(err) => Cause::SimpleError(err),
                 Cause::UniError(err) => Cause::DynError(err),
                 Cause::DynError(err) => Cause::DynError(err),
-                Cause::UniStdError(err) => Self::uni_std_error_as_type(err),
-                Cause::StdError(err) => Self::std_error_as_type(err),
+                Cause::UniStdError(err) => Cause::UniStdError(err),
+                Cause::StdError(err) => Cause::StdError(err),
                 Cause::UniDisplay(err) => Cause::UniDisplay(err),
             }),
-            Cause::UniStdError(err) => err.source().map(|err| Self::std_error_as_type(err)),
-            Cause::StdError(err) => err.source().map(|err| Self::std_error_as_type(err)),
+            Cause::UniStdError(err) => Some(Cause::UniStdError(err)),
+            Cause::StdError(err) => Some(Cause::StdError(err)),
             Cause::UniDisplay(_) => None,
-        }
-    }
-}
-
-impl<'e, T: UniKind> Debug for Cause<'e, T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match *self {
-            Cause::SimpleError(err) => <SimpleError as Debug>::fmt(err, f),
-            Cause::UniError(err) => <UniError<T> as Debug>::fmt(err, f),
-            Cause::DynError(err) => <DynError as Debug>::fmt(err, f),
-            Cause::UniStdError(err) => <dyn UniStdError as Debug>::fmt(err, f),
-            Cause::StdError(err) => <dyn Error as Debug>::fmt(err, f),
-            Cause::UniDisplay(err) => <dyn UniDisplay as Debug>::fmt(err, f),
         }
     }
 }
@@ -297,8 +265,8 @@ enum CauseInner<T> {
     UniError(UniError<T>),
     #[allow(dead_code)]
     DynError(DynError),
-    UniStdError(Box<dyn UniStdError>),
-    UniDisplay(Box<dyn UniDisplay>),
+    UniStdError(Box<dyn UniStdError + Send + Sync>),
+    UniDisplay(Box<dyn UniDisplay + Send + Sync>),
 }
 
 #[derive(Debug)]
@@ -306,6 +274,49 @@ struct UniErrorInner<T> {
     kind: T,
     context: Option<Cow<'static, str>>,
     cause: Option<CauseInner<T>>,
+}
+
+impl<T: UniKind> UniErrorInner<T> {
+    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e, T>> {
+        self.cause.as_ref().map(|inner| Cause::from_inner(inner))
+    }
+}
+
+impl<T: UniKind> Display for UniErrorInner<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if let Some(context) = &self.context {
+            write!(f, "{}", context)?;
+        }
+
+        if let Some(context) = self.kind.context() {
+            if self.context.is_some() {
+                write!(f, ": ")?;
+            }
+            write!(f, "{}", context)?;
+        }
+
+        if let Some(cause) = &self.prev_cause() {
+            if self.context.is_some() || self.kind.context().is_some() {
+                write!(f, ": ")?;
+            }
+            write!(f, "{}", cause)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<T: UniKind> Error for UniErrorInner<T> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self.prev_cause() {
+            Some(Cause::SimpleError(err)) => Some(&err.inner),
+            Some(Cause::UniError(err)) => Some(&err.inner),
+            Some(Cause::DynError(err)) => Some(&err.inner),
+            Some(Cause::UniStdError(err)) => Some(err),
+            Some(Cause::StdError(err)) => Some(err),
+            Some(Cause::UniDisplay(_)) | None => None,
+        }
+    }
 }
 
 /// A custom error type that can be used to return an error with a custom error kind.
@@ -394,10 +405,7 @@ impl<T: UniKind> UniError<T> {
 
     /// Returns a reference to the first entry in the cause chain.
     pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e, T>> {
-        self.inner
-            .cause
-            .as_ref()
-            .map(|inner| Cause::from_inner(inner))
+        self.inner.prev_cause()
     }
 
     pub fn chain(&self) -> Chain<'_, T> {
@@ -434,44 +442,27 @@ impl UniError<DynKind> {
 
 impl<T: UniKind> Display for UniError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if let Some(context) = &self.inner.context {
-            write!(f, "{}", context)?;
-        }
-
-        if let Some(context) = self.inner.kind.context() {
-            if self.inner.context.is_some() {
-                write!(f, ": ")?;
-            }
-            write!(f, "{}", context)?;
-        }
-
-        if let Some(cause) = &self.prev_cause() {
-            if self.inner.context.is_some() || self.inner.kind.context().is_some() {
-                write!(f, ": ")?;
-            }
-            write!(f, "{}", cause)?;
-        }
-
-        Ok(())
+        <UniErrorInner<T> as Display>::fmt(&self.inner, f)
     }
 }
 
-// impl<T: UniKind, E: UniStdError> From<E> for UniError<T> {
-//     fn from(err: E) -> Self {
-//         UniError::new(UniKind::default(), None, Some(UniError::build_cause(err)))
-//     }
-// }
+impl<T: UniKind> Deref for UniError<T> {
+    type Target = dyn Error + Sync + Send + 'static;
 
-impl<T: UniKind> Error for UniError<T> {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self.prev_cause() {
-            Some(Cause::SimpleError(err)) => Some(err),
-            Some(Cause::UniError(err)) => Some(err),
-            Some(Cause::DynError(err)) => Some(err),
-            Some(Cause::UniStdError(err)) => Some(err),
-            Some(Cause::StdError(err)) => Some(err),
-            Some(Cause::UniDisplay(_)) | None => None,
-        }
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T: UniKind> AsRef<dyn Error + Sync + Send> for UniError<T> {
+    fn as_ref(&self) -> &(dyn Error + Sync + Send + 'static) {
+        &**self
+    }
+}
+
+impl<T: UniKind, E: UniStdError> From<E> for UniError<T> {
+    fn from(err: E) -> Self {
+        UniError::new(UniKind::default(), None, Some(UniError::build_cause(err)))
     }
 }
 
