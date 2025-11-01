@@ -158,6 +158,36 @@ pub trait ResultContext<T, U, E> {
     /// Wraps the existing result error with the provided kind and context.
     fn kind_context(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniResult<U, T>;
 
+    /// Wraps the existing result error with the provided kind.
+    fn kind_fn<F>(self, kind: F) -> UniResult<U, T>
+    where
+        F: FnOnce() -> T,
+        Self: Sized,
+    {
+        self.kind(kind())
+    }
+
+    /// Wraps the existing result error with the provided context.
+    fn context_fn<F, S>(self, context: F) -> UniResult<U, T>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        Self: Sized,
+    {
+        self.context(context())
+    }
+
+    /// Wraps the existing result error with the provided kind and context.
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<U, T>
+    where
+        F: FnOnce() -> T,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        Self: Sized,
+    {
+        self.kind_context(kind(), context())
+    }
+
     /// Wraps the existing result error with no additional context.
     fn wrap(self) -> UniResult<U, T>;
 }
@@ -257,6 +287,36 @@ pub trait ResultContextDisplay<T, U, E> {
 
     /// Wraps the existing result error with the provided kind and context (for `Display` types).
     fn kind_context_disp(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniResult<U, T>;
+
+    /// Wraps the existing result error with the provided kind.
+    fn kind_fn_disp<F>(self, kind: F) -> UniResult<U, T>
+    where
+        F: FnOnce() -> T,
+        Self: Sized,
+    {
+        self.kind_disp(kind())
+    }
+
+    /// Wraps the existing result error with the provided context.
+    fn context_fn_disp<F, S>(self, context: F) -> UniResult<U, T>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        Self: Sized,
+    {
+        self.context_disp(context())
+    }
+
+    /// Wraps the existing result error with the provided kind and context.
+    fn kind_context_fn_disp<F, F2, S>(self, kind: F, context: F2) -> UniResult<U, T>
+    where
+        F: FnOnce() -> T,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        Self: Sized,
+    {
+        self.kind_context_disp(kind(), context())
+    }
 
     /// Wraps the existing result error with no additional context (for `Display` types).
     fn wrap_disp(self) -> UniResult<U, T>;
