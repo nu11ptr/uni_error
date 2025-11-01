@@ -121,7 +121,7 @@ fn main() {
 
 ## FAQ
 
-### How do I simply propigate errors using the question mark?
+### How do I simply propigate errors/options/results using the question mark?
 
 If the error type implements `std::error::Error`, or is `UniError<T>` --> `UniError<T>`/`DynError`:
 
@@ -133,6 +133,12 @@ result?
 
 ```text
 result.wrap()?
+```
+
+`Option<V>`:
+
+```text
+option.wrap()?
 ```
 
 Fallback for `std::fmt::Display` types:
