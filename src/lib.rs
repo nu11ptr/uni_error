@@ -15,8 +15,8 @@ use core::{
 #[cfg(feature = "std")]
 use std::{borrow::Cow, sync::Arc};
 
-// #[doc = include_str!("../README.md")]
-// mod readme_tests {}
+#[doc = include_str!("../README.md")]
+mod readme_tests {}
 
 // *** Type aliases ***
 
