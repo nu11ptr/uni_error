@@ -16,7 +16,7 @@ fn test_wrap_simple_to_uni() {
 
     assert!(matches!(prev, Cause::UniError(_)));
     assert!(prev.next().is_none());
-    assert_eq!(prev.type_name(), "uni_error::UniError<()>");
+    assert_eq!(prev.type_name(), "uni_error::error::UniError<()>");
     match prev.downcast_ref::<SimpleError, FakeError>() {
         DowncastRef::Any(Some(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to SimpleError"),
@@ -33,7 +33,7 @@ fn test_wrap_uni_to_simple() {
     assert!(prev.next().is_none());
     assert_eq!(
         prev.type_name(),
-        "uni_error::UniError<test_convert::TestKind>"
+        "uni_error::error::UniError<test_convert::TestKind>"
     );
     match prev.downcast_ref::<UniError<TestKind>, FakeError>() {
         DowncastRef::Any(Some(err)) => assert_eq!(err, &err1),
@@ -69,7 +69,7 @@ fn test_wrap_error_to_uni() {
 
     assert!(matches!(prev, Cause::UniStdError(_)));
     assert!(prev.next().is_none());
-    assert_eq!(prev.type_name(), "uni_error::FakeError");
+    assert_eq!(prev.type_name(), "uni_error::cause::FakeError");
     match prev.downcast_ref::<(), FakeError>() {
         DowncastRef::Error(Some(err)) => assert_eq!(err, &FakeError),
         _ => panic!("Expected downcast to UniError<TestKind>"),
