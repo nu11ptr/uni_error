@@ -33,7 +33,7 @@ pub type DynResult<T> = Result<T, DynError>;
 pub type SimpleError = UniError<()>;
 
 /// An error type that is used as a cause when `UniKind` isn't `T`.
-pub type DynError = Box<dyn UniErrorTrait + Send + Sync>;
+pub type DynError = Box<dyn UniErrorOps + Send + Sync>;
 
 // *** UniKind trait ***
 
@@ -92,7 +92,7 @@ impl<T> UniDisplay for T where T: Display + Debug + Any + Send + Sync {}
 // *** Downcast / FakeError ***
 
 #[doc(hidden)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FakeError;
 
 impl Display for FakeError {
@@ -103,6 +103,7 @@ impl Display for FakeError {
 
 impl Error for FakeError {}
 
+// TODO: Are there benefits to removing the Option and adding a None variant?
 pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
     Any(Option<&'e A>),
     Error(Option<&'e E>),
@@ -113,7 +114,7 @@ pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
 /// The cause of an error.
 #[derive(Copy, Clone, Debug)]
 pub enum Cause<'e> {
-    UniError(&'e DynError),
+    UniError(&'e dyn UniErrorOps),
     UniStdError(&'e dyn UniStdError),
     StdError(&'e (dyn Error + 'static)),
     UniDisplay(&'e dyn UniDisplay),
@@ -122,9 +123,9 @@ pub enum Cause<'e> {
 impl<'e> Cause<'e> {
     fn from_inner(inner: &'e CauseInner) -> Cause<'e> {
         match inner {
-            CauseInner::UniError(err) => Cause::UniError(err),
+            CauseInner::UniError(err) => Cause::UniError(&**err),
             CauseInner::UniStdError(err) => Cause::UniStdError(&**err),
-            CauseInner::UniDisplay(err) => Cause::UniDisplay(err),
+            CauseInner::UniDisplay(err) => Cause::UniDisplay(&**err),
         }
     }
 
@@ -167,8 +168,8 @@ impl<'e> Cause<'e> {
                 Cause::StdError(err) => Cause::StdError(err),
                 Cause::UniDisplay(err) => Cause::UniDisplay(err),
             }),
-            Cause::UniStdError(err) => Some(Cause::UniStdError(err)),
-            Cause::StdError(err) => Some(Cause::StdError(err)),
+            Cause::UniStdError(err) => err.source().map(|err| Cause::StdError(err)),
+            Cause::StdError(err) => err.source().map(|err| Cause::StdError(err)),
             Cause::UniDisplay(_) => None,
         }
     }
@@ -177,7 +178,7 @@ impl<'e> Cause<'e> {
 impl<'e> Display for Cause<'e> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
-            Cause::UniError(err) => <DynError as Display>::fmt(err, f),
+            Cause::UniError(err) => <dyn UniErrorOps as Display>::fmt(err, f),
             Cause::UniStdError(err) => <dyn UniStdError as Display>::fmt(err, f),
             Cause::StdError(err) => <dyn Error as Display>::fmt(err, f),
             Cause::UniDisplay(err) => <dyn UniDisplay as Display>::fmt(err, f),
@@ -264,7 +265,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
 impl<T: UniKind> Error for UniErrorInner<T> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self.prev_cause() {
-            Some(Cause::UniError(err)) => Some(&***err),
+            Some(Cause::UniError(err)) => Some(&**err),
             Some(Cause::UniStdError(err)) => Some(err),
             Some(Cause::StdError(err)) => Some(err),
             Some(Cause::UniDisplay(_)) | None => None,
@@ -275,7 +276,7 @@ impl<T: UniKind> Error for UniErrorInner<T> {
 // *** UniError ***
 
 /// A custom error type that can be used to return an error with a custom error kind.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct UniError<T> {
     inner: Arc<UniErrorInner<T>>,
 }
@@ -362,8 +363,9 @@ impl<T: Copy> UniError<T> {
     }
 }
 
-pub trait UniErrorTrait:
-    UniKind + Debug + Display + Any + Deref<Target = dyn Error + Send + Sync + 'static> + Send + Sync
+/// A trait that specifies the operations that can be performed on a `UniError`.
+pub trait UniErrorOps:
+    UniKind + UniDisplay + Deref<Target = dyn Error + Send + Sync + 'static>
 {
     /// Returns a reference to the first entry in the cause chain.
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>>;
@@ -375,7 +377,23 @@ pub trait UniErrorTrait:
     fn root_cause(&self) -> Option<Cause<'_>>;
 }
 
-impl<T: UniKind> UniErrorTrait for UniError<T> {
+impl dyn UniErrorOps + Send + Sync {
+    // TODO: I think this requires making DynError a newtype wrapper
+    // as we can't create an impl Box<dyn Any> block
+    /// Attempts to downcast a `DynError` to a `UniError<T>`.
+    // pub fn downcast<T: UniKind>(self) -> Option<UniError<T>> {
+    //     let err: Box<dyn Any> = self;
+    //     err.downcast().ok().map(|err| *err)
+    // }
+
+    /// Attempts to downcast a `DynError` to a reference to a `UniError<T>`.
+    pub fn downcast_ref<T: UniKind>(&self) -> Option<&UniError<T>> {
+        let err: &dyn Any = self;
+        err.downcast_ref()
+    }
+}
+
+impl<T: UniKind> UniErrorOps for UniError<T> {
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
         self.inner.prev_cause()
     }
@@ -402,6 +420,15 @@ impl<T: UniKind> UniKind for UniError<T> {}
 impl<T: UniKind> Display for UniError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         <UniErrorInner<T> as Display>::fmt(&self.inner, f)
+    }
+}
+
+// Manually implement as derive requires T: Clone
+impl<T: UniKind> Clone for UniError<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+        }
     }
 }
 
@@ -442,9 +469,57 @@ impl<T: UniKind + Default, E: UniStdError> From<E> for UniError<T> {
     }
 }
 
-impl<E: UniErrorTrait> From<E> for DynError {
+impl<E: UniErrorOps> From<E> for DynError {
     fn from(err: E) -> Self {
         Box::new(err)
+    }
+}
+
+/// A wrapper for a `UniError` that implements the `Error` trait. Useful for
+/// converting a `UniError` to a `Box<dyn Error + Send + Sync>` (and back via
+/// downcasting).
+#[derive(Debug)]
+pub struct StdErrorWrapper<T>(pub UniError<T>);
+
+impl<T: UniKind> Display for StdErrorWrapper<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl<T: UniKind> Error for StdErrorWrapper<T> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl<T: UniKind> From<UniError<T>> for Box<dyn Error + Send + Sync> {
+    fn from(err: UniError<T>) -> Self {
+        Box::new(StdErrorWrapper(err))
+    }
+}
+
+/// A wrapper for a `DynError` that implements the `Error` trait. Useful for
+/// converting a `DynError` to a `Box<dyn Error + Send + Sync>` (and back via
+/// downcasting).
+#[derive(Debug)]
+pub struct StdErrorDynWrapper(pub DynError);
+
+impl Display for StdErrorDynWrapper {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl Error for StdErrorDynWrapper {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl From<DynError> for Box<dyn Error + Send + Sync> {
+    fn from(err: DynError) -> Self {
+        Box::new(StdErrorDynWrapper(err))
     }
 }
 
