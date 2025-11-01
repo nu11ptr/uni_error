@@ -59,7 +59,7 @@ use uni_error::*;
 
 fn do_something() -> SimpleResult<Vec<u8>> {
     std::fs::read("/tmp/nonexist")
-        .with_context("Oops... I wanted this to work!")
+        .context("Oops... I wanted this to work!")
 }
 
 fn main() {
@@ -79,8 +79,7 @@ fn do_something() -> Result<(), String> {
 }
 
 fn try_do_something() -> SimpleResult<()> {
-    do_something()
-        .with_context_disp("Oops... I wanted this to work!")
+    do_something().context_disp("Oops... I wanted this to work!")
 }
 
 fn main() {
@@ -111,7 +110,7 @@ impl UniKind for MyKind {
 
 fn do_something() -> UniResult<Vec<u8>, MyKind> {
     std::fs::read("/tmp/nonexist")
-        .with_kind(MyKind::SomethingWorse("That was REALLY bad!"))
+        .kind(MyKind::SomethingWorse("That was REALLY bad!"))
 }
 
 fn main() {
