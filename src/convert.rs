@@ -210,6 +210,24 @@ impl<T: UniKind + Default, U, E: UniStdError> ResultContext<T, U, E> for Result<
     }
 }
 
+impl<T: UniKind + Default, U, E: UniStdError> ResultContext<T, U, E> for Option<U> {
+    fn kind(self, kind: T) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_kind(kind))
+    }
+
+    fn context(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_context(context))
+    }
+
+    fn kind_context(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_kind_context(kind, context))
+    }
+
+    fn wrap(self) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_kind(Default::default()))
+    }
+}
+
 impl<T: UniKind + Default, U: UniKind + Default, V> ResultContext<U, V, T> for UniResult<V, T> {
     fn kind(self, kind: U) -> UniResult<V, U> {
         self.map_err(|err| err.kind(kind))
@@ -337,5 +355,23 @@ impl<T: UniKind + Default, U, E: UniDisplay> ResultContextDisplay<T, U, E> for R
 
     fn wrap_disp(self) -> UniResult<U, T> {
         self.map_err(|err| err.wrap_disp())
+    }
+}
+
+impl<T: UniKind + Default, U, E: UniDisplay> ResultContextDisplay<T, U, E> for Option<U> {
+    fn kind_disp(self, kind: T) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_kind(kind))
+    }
+
+    fn context_disp(self, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_context(context))
+    }
+
+    fn kind_context_disp(self, kind: T, context: impl Into<Cow<'static, str>>) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_kind_context(kind, context))
+    }
+
+    fn wrap_disp(self) -> UniResult<U, T> {
+        self.ok_or_else(|| UniError::from_kind(Default::default()))
     }
 }
