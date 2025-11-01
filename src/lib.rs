@@ -400,6 +400,23 @@ impl<T: UniKind> Display for UniError<T> {
     }
 }
 
+impl<T: PartialEq + 'static> PartialEq for UniError<T> {
+    fn eq(&self, other: &Self) -> bool {
+        // Kind values must be equal at minimum
+        if self.inner.kind == other.inner.kind {
+            // If the kind is `()`, then the context must be equal, otherwise
+            // kind equality alone is sufficient
+            if self.type_id() == TypeId::of::<()>() {
+                self.inner.context == other.inner.context
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+}
+
 impl<T: UniKind> Deref for UniError<T> {
     type Target = dyn Error + Sync + Send + 'static;
 
