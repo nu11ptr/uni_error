@@ -6,7 +6,7 @@ extern crate alloc;
 #[cfg(not(feature = "std"))]
 use alloc::{borrow::Cow, boxed::Box, sync::Arc};
 use core::{
-    any::{Any, TypeId, type_name},
+    any::{Any, TypeId, type_name, type_name_of_val},
     error::Error,
     fmt::{Debug, Display},
     ops::Deref,
@@ -64,27 +64,14 @@ pub trait UniKind: Debug + Any + Send + Sync {
     }
 }
 
-impl dyn UniKind {
-    /// The string name of the type implementing this trait.
-    pub fn kind_type_name(&self) -> &str {
-        type_name::<Self>()
-    }
-
-    pub fn is_same_type<U: UniKind>(&self) -> bool {
-        self.type_id() == TypeId::of::<U>()
-    }
-}
-
 impl UniKind for () {}
 
 // *** Enriched traits ***
 
-// TODO: Error already has downcasting - Any shouldn't be necessary
+// FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard `Error` trait with `Any` to allow downcasting.
-pub trait UniStdError: Error + Any + Send + Sync {}
-
-impl dyn UniStdError {
-    pub fn type_name(&self) -> &str {
+pub trait UniStdError: Any + Error + Send + Sync {
+    fn type_name(&self) -> &'static str {
         type_name::<Self>()
     }
 }
@@ -92,28 +79,39 @@ impl dyn UniStdError {
 impl<T> UniStdError for T where T: Error + Any + Send + Sync {}
 
 /// Standard `Display` trait with `Any` to allow downcasting.
-pub trait UniDisplay: Display + Debug + Any + Send + Sync {}
-
-impl dyn UniDisplay {
-    pub fn type_name(&self) -> &str {
+pub trait UniDisplay: Display + Debug + Any + Send + Sync {
+    fn type_name(&self) -> &'static str {
+        // TODO: Find/replace 'UniError<()>' --> SimpleError, 'Box<dyn UniErrorTrait>' --> DynError
+        // before returning type name
         type_name::<Self>()
     }
 }
 
 impl<T> UniDisplay for T where T: Display + Debug + Any + Send + Sync {}
 
-// *** Cause ***
+// *** Downcast / FakeError ***
 
-impl<'e> Copy for Cause<'e> {}
+#[doc(hidden)]
+#[derive(Debug)]
+pub struct FakeError;
 
-impl<'e> Clone for Cause<'e> {
-    fn clone(&self) -> Self {
-        *self
+impl Display for FakeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "FakeError")
     }
 }
 
+impl Error for FakeError {}
+
+pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
+    Any(Option<&'e A>),
+    Error(Option<&'e E>),
+}
+
+// *** Cause ***
+
 /// The cause of an error.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Cause<'e> {
     UniError(&'e DynError),
     UniStdError(&'e dyn UniStdError),
@@ -130,21 +128,34 @@ impl<'e> Cause<'e> {
         }
     }
 
-    /// Attempts to downcast this cause to a specific concrete type.
-    pub fn as_type_ref<U: UniStdError>(&self) -> Option<&U> {
+    fn any_downcast_ref<A: 'static>(err: &'e dyn Any) -> Option<&'e A> {
+        err.downcast_ref::<A>()
+    }
+
+    fn error_downcast_ref<E: Error + 'static>(err: &'e (dyn Error + 'static)) -> Option<&'e E> {
+        err.downcast_ref::<E>()
+    }
+
+    // Attempts to downcast this cause to a specific concrete type.
+    pub fn downcast_ref<A: 'static, E: Error + 'static>(self) -> DowncastRef<'e, A, E> {
         match self {
-            Cause::UniStdError(err) => Self::error_downcast_ref(*err),
-            Cause::StdError(err) => err.downcast_ref(),
-            Cause::UniDisplay(err) => {
-                let err: &dyn Any = &**err;
-                err.downcast_ref::<U>()
-            }
-            _ => None,
+            Cause::UniError(err) => DowncastRef::Any(Self::any_downcast_ref(err)),
+            Cause::UniStdError(err) => DowncastRef::Error(Self::error_downcast_ref(err)),
+            Cause::StdError(err) => DowncastRef::Error(Self::error_downcast_ref(err)),
+            Cause::UniDisplay(err) => DowncastRef::Any(Self::any_downcast_ref(err)),
         }
     }
 
-    fn error_downcast_ref<U: UniStdError>(err: &'e (dyn Error + 'static)) -> Option<&'e U> {
-        err.downcast_ref::<U>()
+    // Return the actual type name of the cause.
+    // NOTE: This will only give the trait object name for downstream errors before UniError wrapping was applied.
+    pub fn type_name(self) -> &'static str {
+        match self {
+            Cause::UniError(err) => err.type_name(),
+            Cause::UniStdError(err) => UniStdError::type_name(err),
+            // This won't give us anything useful, but it's the best we can do to maintain consistency
+            Cause::StdError(err) => type_name_of_val(err),
+            Cause::UniDisplay(err) => err.type_name(),
+        }
     }
 
     // Returns the next cause in the chain, if any.
@@ -354,8 +365,6 @@ impl<T: Copy> UniError<T> {
 pub trait UniErrorTrait:
     UniKind + Debug + Display + Any + Deref<Target = dyn Error + Send + Sync + 'static> + Send + Sync
 {
-    fn kind_obj_ref(&self) -> &dyn UniKind;
-
     /// Returns a reference to the first entry in the cause chain.
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>>;
 
@@ -367,10 +376,6 @@ pub trait UniErrorTrait:
 }
 
 impl<T: UniKind> UniErrorTrait for UniError<T> {
-    fn kind_obj_ref(&self) -> &dyn UniKind {
-        self.kind_ref()
-    }
-
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
         self.inner.prev_cause()
     }
@@ -672,7 +677,7 @@ mod tests {
 
     #[cfg(not(feature = "std"))]
     use alloc::string::ToString;
-    use core::cell::{BorrowMutError, RefCell};
+    use core::cell::RefCell;
 
     use super::*;
 
@@ -713,11 +718,5 @@ mod tests {
         assert_eq!(err.to_string(), "test: RefCell already borrowed");
         assert_eq!(err.kind_ref(), &TestKind::Test);
         assert!(matches!(err.prev_cause(), Some(Cause::UniStdError(_))));
-        assert!(
-            err.prev_cause()
-                .unwrap()
-                .as_type_ref::<BorrowMutError>()
-                .is_some()
-        );
     }
 }
