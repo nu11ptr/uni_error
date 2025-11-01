@@ -14,7 +14,7 @@ I wrote this crate for myself to be my universal error type after I noticed thes
 
 3. It can sometimes be helpful to evaluate the chain of errors for determining the root cause.
 
-The typical crates to solve these problems are `anyhow` and `thiserror`. These are great crates, but I wanted better integration between the univeral error and the kind (essentially an `anyhow` that is "kind-aware"). This crate is more like `anyhow` than `thiserror`, as the latter could be seen as complementary and used to create the inner "kind".
+The typical crates to solve these problems are `anyhow` and `thiserror`. These are great crates, but I wanted better integration between the universal error and the kind (essentially an `anyhow` that is "kind-aware"). This crate is more like `anyhow` than `thiserror`, as the latter could be seen as complementary and used to create the inner "kind".
 
 ## Install
 
