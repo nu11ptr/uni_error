@@ -40,12 +40,12 @@ pub type DynError = Box<dyn UniErrorOps + Send + Sync>;
 /// A trait that specifies a custom error kind. Any specified to facilitate downcasting.
 pub trait UniKind: Debug + Any + Send + Sync {
     // The string value of the kind, if any. This is useful for programmatic evaluation
-    // when the type is boxed in the error chain and the type is not known.
+    // when the type is boxed in the error chain and the type is not known. Defaults to `""`.
     fn kind_value(&self) -> &str {
         ""
     }
 
-    /// Returns additional context for this specific kind, if any.
+    /// Returns additional context for this specific kind, if any. Defaults to `None`.
     fn kind_context(&self) -> Option<&str> {
         None
     }
@@ -55,7 +55,7 @@ pub trait UniKind: Debug + Any + Send + Sync {
         -1
     }
 
-    // Return a trait object reference to the kind
+    // Return a trait object reference to the kind.
     fn kind_obj_ref(&self) -> &dyn UniKind
     where
         Self: Sized,
@@ -71,6 +71,7 @@ impl UniKind for () {}
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard `Error` trait with `Any` to allow downcasting.
 pub trait UniStdError: Any + Error + Send + Sync {
+    /// Returns the concrete type name of the error.
     fn type_name(&self) -> &'static str {
         type_name::<Self>()
     }
@@ -80,6 +81,7 @@ impl<T> UniStdError for T where T: Error + Any + Send + Sync {}
 
 /// Standard `Display` trait with `Any` to allow downcasting.
 pub trait UniDisplay: Display + Debug + Any + Send + Sync {
+    /// Returns the concrete type name of the error.
     fn type_name(&self) -> &'static str {
         // TODO: Find/replace 'UniError<()>' --> SimpleError, 'Box<dyn UniErrorTrait>' --> DynError
         // before returning type name
@@ -104,19 +106,26 @@ impl Display for FakeError {
 impl Error for FakeError {}
 
 // TODO: Are there benefits to removing the Option and adding a None variant?
+/// A reference to a downcasted error.
 pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
+    /// A reference to a downcasted error for all non-`std::error::Error` types (includes `UniError` types)
     Any(Option<&'e A>),
+    /// A reference to a downcasted error that implements `std::error::Error`.
     Error(Option<&'e E>),
 }
 
 // *** Cause ***
 
-/// The cause of an error.
+/// An error in the cause chain.
 #[derive(Copy, Clone, Debug)]
 pub enum Cause<'e> {
+    /// A reference to any of the `UniError` types we wrapped.
     UniError(&'e dyn UniErrorOps),
+    /// A reference to a `std::error::Error` that we wrapped.
     UniStdError(&'e dyn UniStdError),
+    /// A reference to a`std::error::Error` that was wrapped downstream (obtained via `source`).
     StdError(&'e (dyn Error + 'static)),
+    /// A reference to a `std::fmt::Display` that we wrapped.
     UniDisplay(&'e dyn UniDisplay),
 }
 
@@ -370,6 +379,7 @@ pub trait UniErrorOps:
     /// Returns a reference to the first entry in the cause chain.
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>>;
 
+    /// Returns an iterator over the cause chain.
     fn chain(&self) -> Chain<'_>;
 
     // TODO: Remove Option and make 'self' a possible candidate
