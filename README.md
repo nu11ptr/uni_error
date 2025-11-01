@@ -22,6 +22,18 @@ The typical crates to solve these problems are `anyhow` and `thiserror`. These a
 cargo add uni_error
 ```
 
+## Features
+
+* Simple/ergonomic API
+* Can wrap any error type that implements `Display`
+* Provides error chain with rich metadata
+* Type safe and dynamic (string/integer) error kind
+* Implements `Clone`
+* No dependencies
+* No macros
+* No `unsafe`
+* Optionally `no_std` (without loss of functionality)
+
 ## Examples
 
 The basics:
@@ -106,18 +118,6 @@ fn main() {
 }
 
 ```
-
-## Features
-
-* Simple/ergonomic API
-* Can wrap any error type that implements `Display`
-* Provides error chain with rich metadata
-* Type safe and dynamic (string/integer) error kind
-* Implements `Clone`
-* No dependencies
-* No macros
-* No `unsafe`
-* Optionally `no_std`
 
 ## FAQ
 
