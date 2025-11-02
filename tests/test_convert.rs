@@ -14,7 +14,7 @@ fn test_wrap_simple_to_uni() {
     assert!(prev.next().is_none());
     assert_eq!(prev.type_name(), "uni_error::error::UniError<()>");
     match prev.downcast_ref::<SimpleError, FakeError>() {
-        Some(DowncastRef::Any(err)) => assert_eq!(err, &err1),
+        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to SimpleError"),
     }
 }
@@ -32,7 +32,7 @@ fn test_wrap_uni_to_simple() {
         "uni_error::error::UniError<test_convert::common::TestKind>"
     );
     match prev.downcast_ref::<UniError<TestKind>, FakeError>() {
-        Some(DowncastRef::Any(err)) => assert_eq!(err, &err1),
+        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to SimpleError"),
     }
 }
@@ -81,7 +81,7 @@ fn test_wrap_display_to_uni() {
     assert!(prev.next().is_none());
     assert_eq!(prev.type_name(), "&str");
     match prev.downcast_ref::<&str, FakeError>() {
-        Some(DowncastRef::Any(err)) => assert_eq!(err, &err1),
+        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to UniError<TestKind>"),
     }
 }

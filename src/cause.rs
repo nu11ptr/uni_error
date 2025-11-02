@@ -36,7 +36,7 @@ impl<T> UniDisplay for T where T: Display + Debug + Any + Send + Sync {}
 
 // *** Downcast / FakeError ***
 
-#[doc(hidden)]
+/// A placeholder error type for downcasting.
 #[derive(Debug, PartialEq)]
 pub struct FakeError;
 
@@ -51,7 +51,7 @@ impl Error for FakeError {}
 /// A reference to a downcasted error.
 pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
     /// A reference to a downcasted error for all non-`std::error::Error` types (includes `UniError` types)
-    Any(&'e A),
+    Display(&'e A),
     /// A reference to a downcasted error that implements `std::error::Error`.
     Error(&'e E),
 }
@@ -88,17 +88,33 @@ impl<'e> Cause<'e> {
         err.downcast_ref::<E>()
     }
 
-    // Attempts to downcast this cause to a specific concrete type.
+    /// Attempts to downcast this cause to a specific concrete type.
     pub fn downcast_ref<A: 'static, E: Error + 'static>(self) -> Option<DowncastRef<'e, A, E>> {
         match self {
-            Cause::UniError(err) => Self::any_downcast_ref(&**err).map(DowncastRef::Any),
+            Cause::UniError(err) => Self::any_downcast_ref(&**err).map(DowncastRef::Display),
             Cause::UniStdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
             Cause::StdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
-            Cause::UniDisplay(err) => Self::any_downcast_ref(err).map(DowncastRef::Any),
+            Cause::UniDisplay(err) => Self::any_downcast_ref(err).map(DowncastRef::Display),
         }
     }
 
-    // Return the actual type name of the cause.
+    /// Attempts to downcast this cause to a specific concrete type (for types NOT implementing `Error`).
+    pub fn downcast_ref_disp<A: 'static>(self) -> Option<&'e A> {
+        match self.downcast_ref::<A, FakeError>() {
+            Some(DowncastRef::Display(err)) => Some(err),
+            _ => None,
+        }
+    }
+
+    /// Attempts to downcast this cause to a specific concrete type for types implementing `Error`.
+    pub fn downcast_ref_err<E: Error + 'static>(self) -> Option<&'e E> {
+        match self.downcast_ref::<(), E>() {
+            Some(DowncastRef::Error(err)) => Some(err),
+            _ => None,
+        }
+    }
+
+    /// Return the actual type name of the cause.
     // NOTE: This will only give the trait object name for downstream errors before UniError wrapping was applied.
     pub fn type_name(self) -> &'static str {
         match self {
@@ -110,7 +126,7 @@ impl<'e> Cause<'e> {
         }
     }
 
-    // Returns the next cause in the chain, if any.
+    /// Returns the next cause in the chain, if any.
     pub fn next(self) -> Option<Cause<'e>> {
         match self {
             Cause::UniError(err) => err.prev_cause().map(|cause| match cause {

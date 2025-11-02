@@ -1,6 +1,6 @@
 use alloc::{borrow::Cow, boxed::Box, sync::Arc};
 use core::{
-    any::{Any, TypeId},
+    any::{Any, TypeId, type_name},
     error::Error,
     fmt::{Debug, Display},
     ops::Deref,
@@ -24,7 +24,9 @@ pub type SimpleError = UniError<()>;
 
 // *** DynError ***
 
-/// An error type that is used as a cause when `UniKind` isn't `T`.
+/// An error type with an erased kind type. It can be used when you
+/// don't know `T` or wish to propagate multiple `T` types. `UniError<T>`
+/// can be recovered via downcasting if `T` is known.
 #[derive(Debug)]
 pub struct DynError(Box<dyn UniErrorOps + Send + Sync>);
 
@@ -52,8 +54,8 @@ impl Deref for DynError {
 
 /// A trait that specifies a custom error kind. Any specified to facilitate downcasting.
 pub trait UniKind: Debug + Any + Send + Sync {
-    // The string value of the kind, if any. This is useful for programmatic evaluation
-    // when the type is boxed in the error chain and the type is not known. Defaults to `""`.
+    /// The string value of the kind, if any. This is useful for programmatic evaluation
+    /// when the type is boxed in the error chain and the type is not known. Defaults to `""`.
     fn kind_value(&self) -> &str {
         ""
     }
@@ -68,12 +70,17 @@ pub trait UniKind: Debug + Any + Send + Sync {
         -1
     }
 
-    // Return a trait object reference to the kind.
-    fn kind_obj_ref(&self) -> &dyn UniKind
-    where
-        Self: Sized,
-    {
-        self
+    /// Returns the concrete type name of the error.
+    fn kind_type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
+}
+
+impl dyn UniKind + Send + Sync {
+    /// Attempts to downcast a `UniKind` to a specific concrete type.
+    pub fn kind_downcast_ref<T: UniKind>(&self) -> Option<&T> {
+        let err: &dyn Any = self;
+        err.downcast_ref()
     }
 }
 
