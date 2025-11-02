@@ -47,19 +47,19 @@ fn test_cause_with_error_root() {
     assert_eq!(cause1.type_name(), "dyn core::error::Error");
 
     match cause4.downcast_ref::<UniError<TestKind>, FakeError>() {
-        DowncastRef::Any(Some(err)) => assert_eq!(err, &err4),
+        Some(DowncastRef::Any(err)) => assert_eq!(err, &err4),
         _ => panic!("Expected downcast to UniError<TestKind>"),
     }
     match cause3.downcast_ref::<SimpleError, FakeError>() {
-        DowncastRef::Any(Some(err)) => assert_eq!(err, &err3),
+        Some(DowncastRef::Any(err)) => assert_eq!(err, &err3),
         _ => panic!("Expected downcast to SimpleError"),
     }
     match cause2.downcast_ref::<(), TestError>() {
-        DowncastRef::Error(Some(err)) => assert_eq!(err, &err2),
+        Some(DowncastRef::Error(err)) => assert_eq!(err, &err2),
         _ => panic!("Expected downcast to TestError"),
     }
     match cause1.downcast_ref::<(), TestError>() {
-        DowncastRef::Error(Some(err)) => assert_eq!(err, &err1),
+        Some(DowncastRef::Error(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to TestError"),
     }
 
@@ -99,11 +99,11 @@ fn test_cause_with_display_root() {
     assert_eq!(cause1.type_name(), "&str");
 
     match cause2.downcast_ref::<SimpleError, FakeError>() {
-        DowncastRef::Any(Some(err)) => assert_eq!(err, &err2),
+        Some(DowncastRef::Any(err)) => assert_eq!(err, &err2),
         _ => panic!("Expected downcast to SimpleError"),
     }
     match cause1.downcast_ref::<&str, FakeError>() {
-        DowncastRef::Any(Some(err)) => assert_eq!(err, &err1),
+        Some(DowncastRef::Any(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to &str"),
     }
 

@@ -49,13 +49,12 @@ impl Display for FakeError {
 
 impl Error for FakeError {}
 
-// TODO: Are there benefits to removing the Option and adding a None variant?
 /// A reference to a downcasted error.
 pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
     /// A reference to a downcasted error for all non-`std::error::Error` types (includes `UniError` types)
-    Any(Option<&'e A>),
+    Any(&'e A),
     /// A reference to a downcasted error that implements `std::error::Error`.
-    Error(Option<&'e E>),
+    Error(&'e E),
 }
 
 // *** Cause ***
@@ -91,12 +90,12 @@ impl<'e> Cause<'e> {
     }
 
     // Attempts to downcast this cause to a specific concrete type.
-    pub fn downcast_ref<A: 'static, E: Error + 'static>(self) -> DowncastRef<'e, A, E> {
+    pub fn downcast_ref<A: 'static, E: Error + 'static>(self) -> Option<DowncastRef<'e, A, E>> {
         match self {
-            Cause::UniError(err) => DowncastRef::Any(Self::any_downcast_ref(err)),
-            Cause::UniStdError(err) => DowncastRef::Error(Self::error_downcast_ref(err)),
-            Cause::StdError(err) => DowncastRef::Error(Self::error_downcast_ref(err)),
-            Cause::UniDisplay(err) => DowncastRef::Any(Self::any_downcast_ref(err)),
+            Cause::UniError(err) => Self::any_downcast_ref(err).map(DowncastRef::Any),
+            Cause::UniStdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
+            Cause::StdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
+            Cause::UniDisplay(err) => Self::any_downcast_ref(err).map(DowncastRef::Any),
         }
     }
 
