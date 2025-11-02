@@ -1,5 +1,10 @@
 # uni_error
 
+[![Crate](https://img.shields.io/crates/v/uni_error)](https://crates.io/crates/uni_error)
+[![Docs](https://docs.rs/uni_error/badge.svg)](https://docs.rs/uni_error)
+[![Build](https://github.com/nu11ptr/uni_error/workflows/CI/badge.svg)](https://github.com/nu11ptr/uni_error/actions)
+[![codecov](https://codecov.io/github/nu11ptr/uni_error/graph/badge.svg?token=LIBztRdGNS)](https://codecov.io/github/nu11ptr/uni_error)
+
 A simple, universal error type for Rust
 
 ## Overview
