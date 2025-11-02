@@ -27,8 +27,7 @@ impl<T> UniStdError for T where T: Error + Any + Send + Sync {}
 pub trait UniDisplay: Display + Debug + Any + Send + Sync {
     /// Returns the concrete type name of the error.
     fn type_name(&self) -> &'static str {
-        // TODO: Find/replace 'UniError<()>' --> SimpleError, 'Box<dyn UniErrorTrait>' --> DynError
-        // before returning type name
+        // TODO: Find/replace 'UniError<()>' --> SimpleError before returning type name?
         type_name::<Self>()
     }
 }

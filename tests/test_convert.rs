@@ -46,13 +46,12 @@ fn test_convert_uni_to_dyn_and_back() {
     let prev = err2.prev_cause();
     assert!(prev.is_none());
 
-    // TODO: Downcast not yet supported for DynError
-    // match err2.clone().downcast::<TestKind>() {
-    //     Some(err) => assert_eq!(err, err1),
-    //     None => panic!("Expected downcast to UniError<TestKind>"),
-    // }
     match err2.downcast_ref::<TestKind>() {
         Some(err) => assert_eq!(err, &err1),
+        None => panic!("Expected downcast to UniError<TestKind>"),
+    }
+    match err2.downcast::<TestKind>() {
+        Some(err) => assert_eq!(err, err1),
         None => panic!("Expected downcast to UniError<TestKind>"),
     }
 }

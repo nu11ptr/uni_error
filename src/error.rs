@@ -32,6 +32,12 @@ impl DynError {
     pub(crate) fn new<E: UniErrorOps>(err: E) -> Self {
         Self(Box::new(err))
     }
+
+    /// Attempts to downcast a `DynError` to a `UniError<T>`.
+    pub fn downcast<T: UniKind>(self) -> Option<UniError<T>> {
+        let err: Box<dyn Any> = self.0;
+        err.downcast().ok().map(|err| *err)
+    }
 }
 
 impl Deref for DynError {
@@ -192,14 +198,6 @@ pub trait UniErrorOps:
 }
 
 impl dyn UniErrorOps + Send + Sync {
-    // TODO: I think this requires making DynError a newtype wrapper
-    // as we can't create an impl Box<dyn Any> block
-    /// Attempts to downcast a `DynError` to a `UniError<T>`.
-    // pub fn downcast<T: UniKind>(self) -> Option<UniError<T>> {
-    //     let err: Box<dyn Any> = self;
-    //     err.downcast().ok().map(|err| *err)
-    // }
-
     /// Attempts to downcast a `DynError` to a reference to a `UniError<T>`.
     pub fn downcast_ref<T: UniKind>(&self) -> Option<&UniError<T>> {
         let err: &dyn Any = self;
