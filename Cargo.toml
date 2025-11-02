@@ -1,6 +1,14 @@
 [package]
 name = "uni_error"
 version = "0.1.0"
+authors = ["Scott Meeuwsen <smeeuwsen@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "A simple, universal error type for Rust"
+repository = "https://github.com/nu11ptr/uni_error"
+documentation = "https://docs.rs/uni_error"
+keywords = ["error", "error-handling"]
+categories = ["rust-patterns", "no-std"]
+readme = "README.md"
 edition = "2024"
 
 [dependencies]
@@ -8,3 +16,6 @@ edition = "2024"
 [features]
 default = ["std"]
 std = []
+
+[package.metadata.docs.rs]
+all-features = true
