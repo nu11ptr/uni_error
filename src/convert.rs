@@ -2,6 +2,7 @@ use alloc::{borrow::Cow, boxed::Box};
 use core::{error::Error, fmt::Display};
 
 use crate::{
+    CauseInner,
     cause::{UniDisplay, UniStdError},
     error::{DynError, UniError, UniErrorOps, UniKind, UniResult},
 };
@@ -87,14 +88,14 @@ pub trait ErrorContext<T> {
 
 impl<T: UniKind + Default, E: UniStdError> ErrorContext<T> for E {
     fn kind(self, kind: T) -> UniError<T> {
-        UniError::new(kind, None, Some(UniError::<T>::build_cause_error(self)))
+        UniError::new(kind, None, Some(CauseInner::from_error(self)))
     }
 
     fn context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
             Default::default(),
             Some(context.into()),
-            Some(UniError::<T>::build_cause_error(self)),
+            Some(CauseInner::from_error(self)),
         )
     }
 
@@ -102,29 +103,25 @@ impl<T: UniKind + Default, E: UniStdError> ErrorContext<T> for E {
         UniError::new(
             kind,
             Some(context.into()),
-            Some(UniError::<T>::build_cause_error(self)),
+            Some(CauseInner::from_error(self)),
         )
     }
 
     fn wrap(self) -> UniError<T> {
-        UniError::new(
-            Default::default(),
-            None,
-            Some(UniError::<T>::build_cause_error(self)),
-        )
+        UniError::new(Default::default(), None, Some(CauseInner::from_error(self)))
     }
 }
 
 impl<T: UniKind + Default, U: UniKind> ErrorContext<T> for UniError<U> {
     fn kind(self, kind: T) -> UniError<T> {
-        UniError::new(kind, None, Some(UniError::<T>::build_cause(self)))
+        UniError::new(kind, None, Some(CauseInner::from_uni_error(self)))
     }
 
     fn context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
             Default::default(),
             Some(context.into()),
-            Some(UniError::<T>::build_cause(self)),
+            Some(CauseInner::from_uni_error(self)),
         )
     }
 
@@ -132,7 +129,7 @@ impl<T: UniKind + Default, U: UniKind> ErrorContext<T> for UniError<U> {
         UniError::new(
             kind,
             Some(context.into()),
-            Some(UniError::<T>::build_cause(self)),
+            Some(CauseInner::from_uni_error(self)),
         )
     }
 
@@ -140,7 +137,7 @@ impl<T: UniKind + Default, U: UniKind> ErrorContext<T> for UniError<U> {
         UniError::new(
             Default::default(),
             None,
-            Some(UniError::<T>::build_cause(self)),
+            Some(CauseInner::from_uni_error(self)),
         )
     }
 }
@@ -265,14 +262,14 @@ pub trait ErrorContextDisplay<T> {
 
 impl<T: UniKind + Default, E: UniDisplay> ErrorContextDisplay<T> for E {
     fn kind_disp(self, kind: T) -> UniError<T> {
-        UniError::new(kind, None, Some(UniError::<T>::build_cause_display(self)))
+        UniError::new(kind, None, Some(CauseInner::from_display(self)))
     }
 
     fn context_disp(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
         UniError::new(
             Default::default(),
             Some(context.into()),
-            Some(UniError::<T>::build_cause_display(self)),
+            Some(CauseInner::from_display(self)),
         )
     }
 
@@ -280,7 +277,7 @@ impl<T: UniKind + Default, E: UniDisplay> ErrorContextDisplay<T> for E {
         UniError::new(
             kind,
             Some(context.into()),
-            Some(UniError::<T>::build_cause_display(self)),
+            Some(CauseInner::from_display(self)),
         )
     }
 
@@ -288,7 +285,7 @@ impl<T: UniKind + Default, E: UniDisplay> ErrorContextDisplay<T> for E {
         UniError::new(
             Default::default(),
             None,
-            Some(UniError::<T>::build_cause_display(self)),
+            Some(CauseInner::from_display(self)),
         )
     }
 }

@@ -6,7 +6,7 @@ use core::{
     ops::Deref,
 };
 
-use crate::cause::{Cause, CauseInner, Chain, UniDisplay, UniStdError};
+use crate::cause::{Cause, CauseInner, Chain, UniDisplay};
 
 // *** Type aliases ***
 
@@ -59,7 +59,7 @@ impl UniKind for () {}
 // *** UniErrorInner ***
 
 #[derive(Debug)]
-struct UniErrorInner<T> {
+pub(crate) struct UniErrorInner<T> {
     kind: T,
     context: Option<Cow<'static, str>>,
     cause: Option<CauseInner>,
@@ -144,47 +144,6 @@ impl<T: UniKind> UniError<T> {
     /// Creates a new `UniError` with the provided kind, the provided context, and no cause.
     pub fn from_kind_context(kind: T, context: impl Into<Cow<'static, str>>) -> Self {
         Self::new(kind, Some(context.into()), None)
-    }
-
-    fn build_uni_error_cause(cause: Box<dyn Any>) -> CauseInner {
-        let dyn_error: DynError = if cause.is::<SimpleError>() {
-            cause
-                .downcast::<SimpleError>()
-                .expect("cause is not a SimpleError")
-        } else if cause.is::<DynError>() {
-            *cause
-                .downcast::<DynError>()
-                .expect("cause is not a DynError")
-        } else if cause.is::<UniError<T>>() {
-            cause
-                .downcast::<UniError<T>>()
-                .expect("cause is not a UniError<T>")
-        } else {
-            unreachable!("cause is not a SimpleError, DynError, or UniError<T>");
-        };
-
-        CauseInner::UniError(dyn_error)
-    }
-
-    pub(crate) fn build_cause_display(cause: impl UniDisplay) -> CauseInner {
-        let is_uni_error = <dyn Any>::is::<UniError<T>>(&cause)
-            || <dyn Any>::is::<DynError>(&cause)
-            || <dyn Any>::is::<SimpleError>(&cause);
-
-        // We implement Display, so this might be a UniError
-        if is_uni_error {
-            Self::build_uni_error_cause(Box::new(cause))
-        } else {
-            CauseInner::UniDisplay(Box::new(cause))
-        }
-    }
-
-    pub(crate) fn build_cause_error(cause: impl UniStdError) -> CauseInner {
-        CauseInner::UniStdError(Box::new(cause))
-    }
-
-    pub(crate) fn build_cause<U: UniKind>(cause: UniError<U>) -> CauseInner {
-        CauseInner::UniError(Box::new(cause))
     }
 
     /// Returns a reference to the custom kind.

@@ -7,7 +7,10 @@ use core::{
     fmt::{Debug, Display},
 };
 
-use crate::error::{DynError, UniErrorOps};
+use crate::{
+    UniError, UniKind,
+    error::{DynError, UniErrorOps},
+};
 
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard `Error` trait with `Any` to allow downcasting.
@@ -177,4 +180,18 @@ pub(crate) enum CauseInner {
     UniError(DynError),
     UniStdError(Box<dyn UniStdError + Send + Sync>),
     UniDisplay(Box<dyn UniDisplay + Send + Sync>),
+}
+
+impl CauseInner {
+    pub fn from_display(cause: impl UniDisplay) -> CauseInner {
+        CauseInner::UniDisplay(Box::new(cause))
+    }
+
+    pub fn from_error(cause: impl UniStdError) -> CauseInner {
+        CauseInner::UniStdError(Box::new(cause))
+    }
+
+    pub fn from_uni_error<T: UniKind>(cause: UniError<T>) -> CauseInner {
+        CauseInner::UniError(Box::new(cause))
+    }
 }

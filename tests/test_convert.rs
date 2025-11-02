@@ -1,12 +1,8 @@
+mod common;
+
 use uni_error::*;
 
-#[derive(Debug, PartialEq, Default)]
-enum TestKind {
-    #[default]
-    Test,
-}
-
-impl UniKind for TestKind {}
+use crate::common::TestKind;
 
 #[test]
 fn test_wrap_simple_to_uni() {
@@ -33,7 +29,7 @@ fn test_wrap_uni_to_simple() {
     assert!(prev.next().is_none());
     assert_eq!(
         prev.type_name(),
-        "uni_error::error::UniError<test_convert::TestKind>"
+        "uni_error::error::UniError<test_convert::common::TestKind>"
     );
     match prev.downcast_ref::<UniError<TestKind>, FakeError>() {
         DowncastRef::Any(Some(err)) => assert_eq!(err, &err1),
