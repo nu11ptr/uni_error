@@ -100,7 +100,7 @@ enum MyKind {
 }
 
 impl UniKind for MyKind {
-    fn kind_context(&self) -> Option<&str> {
+    fn context(&self) -> Option<&str> {
         match self {
             MyKind::SomethingBad => None,
             MyKind::SomethingWorse(msg) => Some(msg)

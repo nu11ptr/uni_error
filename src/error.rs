@@ -56,29 +56,29 @@ impl Deref for DynError {
 pub trait UniKind: Debug + Any + Send + Sync {
     /// The string value of the kind, if any. This is useful for programmatic evaluation
     /// when the type is boxed in the error chain and the type is not known. Defaults to `""`.
-    fn kind_value(&self) -> &str {
+    fn value(&self) -> &str {
         ""
     }
 
     /// Returns additional context for this specific kind, if any. Defaults to `None`.
-    fn kind_context(&self) -> Option<&str> {
+    fn context(&self) -> Option<&str> {
         None
     }
 
     /// Returns the code (typically for FFI) for this specific kind. Defaults to -1.
-    fn kind_code(&self) -> i32 {
+    fn code(&self) -> i32 {
         -1
     }
 
-    /// Returns the concrete type name of the error.
-    fn kind_type_name(&self) -> &'static str {
+    /// Returns the concrete type name.
+    fn type_name(&self) -> &'static str {
         type_name::<Self>()
     }
 }
 
-impl dyn UniKind + Send + Sync {
+impl dyn UniKind {
     /// Attempts to downcast a `UniKind` to a specific concrete type.
-    pub fn kind_downcast_ref<T: UniKind>(&self) -> Option<&T> {
+    pub fn downcast_ref<T: UniKind>(&self) -> Option<&T> {
         let err: &dyn Any = self;
         err.downcast_ref()
     }
@@ -107,7 +107,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
             write!(f, "{}", context)?;
         }
 
-        if let Some(context) = self.kind.kind_context() {
+        if let Some(context) = self.kind.context() {
             if self.context.is_some() {
                 write!(f, ": ")?;
             }
@@ -115,7 +115,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
         }
 
         if let Some(cause) = &self.prev_cause() {
-            if self.context.is_some() || self.kind.kind_context().is_some() {
+            if self.context.is_some() || self.kind.context().is_some() {
                 write!(f, ": ")?;
             }
             write!(f, "{}", cause)?;
@@ -190,9 +190,15 @@ impl<T: Copy> UniError<T> {
 }
 
 /// A trait that specifies the operations that can be performed on a `UniError`.
-pub trait UniErrorOps:
-    UniKind + UniDisplay + Deref<Target = dyn Error + Send + Sync + 'static>
-{
+pub trait UniErrorOps: UniDisplay + Deref<Target = dyn Error + Send + Sync + 'static> {
+    /// Return a trait object reference to the custom kind.
+    fn kind_dyn_ref(&self) -> &dyn UniKind;
+
+    /// Returns true if the error is a `SimpleError`.
+    fn is_simple(&self) -> bool {
+        self.type_id() == TypeId::of::<SimpleError>()
+    }
+
     /// Returns a reference to the first entry in the cause chain.
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>>;
 
@@ -213,6 +219,10 @@ impl dyn UniErrorOps + Send + Sync {
 }
 
 impl<T: UniKind> UniErrorOps for UniError<T> {
+    fn kind_dyn_ref(&self) -> &dyn UniKind {
+        self.kind_ref()
+    }
+
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
         self.inner.prev_cause()
     }
@@ -232,8 +242,6 @@ impl<T: UniKind> UniErrorOps for UniError<T> {
     }
 }
 
-impl<T: UniKind> UniKind for UniError<T> {}
-
 impl<T: UniKind> Display for UniError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         <UniErrorInner<T> as Display>::fmt(&self.inner, f)
@@ -249,13 +257,13 @@ impl<T: UniKind> Clone for UniError<T> {
     }
 }
 
-impl<T: PartialEq + 'static> PartialEq for UniError<T> {
+impl<T: UniKind + PartialEq + 'static> PartialEq for UniError<T> {
     fn eq(&self, other: &Self) -> bool {
         // Kind values must be equal at minimum
         if self.inner.kind == other.inner.kind {
             // If the kind is `()`, then the context must be equal, otherwise
             // kind equality alone is sufficient
-            if self.type_id() == TypeId::of::<()>() {
+            if self.is_simple() {
                 self.inner.context == other.inner.context
             } else {
                 true

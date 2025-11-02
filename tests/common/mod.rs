@@ -9,9 +9,33 @@ use uni_error::UniKind;
 pub(crate) enum TestKind {
     #[default]
     Test,
+    // FIXME: This is always used. Why showing as dead code?
+    #[allow(dead_code)]
+    NotATest,
 }
 
-impl UniKind for TestKind {}
+impl UniKind for TestKind {
+    fn value(&self) -> &str {
+        match self {
+            TestKind::Test => "Test",
+            TestKind::NotATest => "NotATest",
+        }
+    }
+
+    fn context(&self) -> Option<&str> {
+        match self {
+            TestKind::Test => None,
+            TestKind::NotATest => Some("This is not a test!"),
+        }
+    }
+
+    fn code(&self) -> i32 {
+        match self {
+            TestKind::Test => 42,
+            TestKind::NotATest => 123,
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TestError {
@@ -29,8 +53,7 @@ impl TestError {
 
 impl Display for TestError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TestError: {}", self.message)?;
-        Ok(())
+        write!(f, "TestError: {}", self.message)
     }
 }
 

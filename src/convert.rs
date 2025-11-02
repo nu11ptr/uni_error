@@ -118,6 +118,9 @@ impl<T: UniKind + Default, U: UniKind> ErrorContext<T> for UniError<U> {
     }
 
     fn context(self, context: impl Into<Cow<'static, str>>) -> UniError<T> {
+        // TODO: Ideally we would detect if this is the same type and just prepend the context
+        // to the existing error (vs. wrap w/ default kind), but that's not possible (or at least
+        // not guaranteed) since our type is based on Arc to prevent T from needing to be Clone.
         UniError::new(
             Default::default(),
             Some(context.into()),
