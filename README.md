@@ -25,10 +25,10 @@ cargo add uni_error
 ## Features
 
 * Simple/ergonomic API
-* Can wrap any error type that implements `Display`
-* Provides error chain with rich metadata
-* Type safe and dynamic (string/integer) error kind
-* Dereferences to `std::error::Error`
+* Can wrap any error type that implements `Display` or `Error`
+* Provides error cause chain with metadata
+* Both type safe and dynamic (string/integer) error kind
+* Dereferences to stdlib `Error` trait
 * Implements `Clone`
 * No dependencies
 * No macros
