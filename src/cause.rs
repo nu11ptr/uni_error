@@ -63,7 +63,7 @@ pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
 #[derive(Copy, Clone, Debug)]
 pub enum Cause<'e> {
     /// A reference to any of the `UniError` types we wrapped.
-    UniError(&'e dyn UniErrorOps),
+    UniError(&'e DynError),
     /// A reference to a `std::error::Error` that we wrapped.
     UniStdError(&'e dyn UniStdError),
     /// A reference to a`std::error::Error` that was wrapped downstream (obtained via `source`).
@@ -75,7 +75,7 @@ pub enum Cause<'e> {
 impl<'e> Cause<'e> {
     pub(crate) fn from_inner(inner: &'e CauseInner) -> Cause<'e> {
         match inner {
-            CauseInner::UniError(err) => Cause::UniError(&**err),
+            CauseInner::UniError(err) => Cause::UniError(&err),
             CauseInner::UniStdError(err) => Cause::UniStdError(&**err),
             CauseInner::UniDisplay(err) => Cause::UniDisplay(&**err),
         }
@@ -92,7 +92,7 @@ impl<'e> Cause<'e> {
     // Attempts to downcast this cause to a specific concrete type.
     pub fn downcast_ref<A: 'static, E: Error + 'static>(self) -> Option<DowncastRef<'e, A, E>> {
         match self {
-            Cause::UniError(err) => Self::any_downcast_ref(err).map(DowncastRef::Any),
+            Cause::UniError(err) => Self::any_downcast_ref(&**err).map(DowncastRef::Any),
             Cause::UniStdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
             Cause::StdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
             Cause::UniDisplay(err) => Self::any_downcast_ref(err).map(DowncastRef::Any),
@@ -130,7 +130,7 @@ impl<'e> Cause<'e> {
 impl<'e> Display for Cause<'e> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
-            Cause::UniError(err) => <dyn UniErrorOps as Display>::fmt(err, f),
+            Cause::UniError(err) => <dyn UniErrorOps as Display>::fmt(&**err, f),
             Cause::UniStdError(err) => <dyn UniStdError as Display>::fmt(err, f),
             Cause::StdError(err) => <dyn Error as Display>::fmt(err, f),
             Cause::UniDisplay(err) => <dyn UniDisplay as Display>::fmt(err, f),
@@ -191,6 +191,6 @@ impl CauseInner {
     }
 
     pub fn from_uni_error<T: UniKind>(cause: UniError<T>) -> CauseInner {
-        CauseInner::UniError(Box::new(cause))
+        CauseInner::UniError(DynError::new(cause))
     }
 }

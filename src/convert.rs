@@ -17,7 +17,7 @@ impl<T: UniKind + Default, E: UniStdError> From<E> for UniError<T> {
 
 impl<E: UniErrorOps> From<E> for DynError {
     fn from(err: E) -> Self {
-        Box::new(err)
+        DynError::new(err)
     }
 }
 
@@ -53,7 +53,7 @@ pub struct StdErrorDynWrapper(pub DynError);
 
 impl Display for StdErrorDynWrapper {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        Display::fmt(&self.0, f)
+        Display::fmt(&**self.0, f)
     }
 }
 

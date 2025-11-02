@@ -22,8 +22,25 @@ pub type DynResult<T> = Result<T, DynError>;
 /// An error type that is used when there is no kind.
 pub type SimpleError = UniError<()>;
 
+// *** DynError ***
+
 /// An error type that is used as a cause when `UniKind` isn't `T`.
-pub type DynError = Box<dyn UniErrorOps + Send + Sync>;
+#[derive(Debug)]
+pub struct DynError(Box<dyn UniErrorOps + Send + Sync>);
+
+impl DynError {
+    pub(crate) fn new<E: UniErrorOps>(err: E) -> Self {
+        Self(Box::new(err))
+    }
+}
+
+impl Deref for DynError {
+    type Target = dyn UniErrorOps + Send + Sync;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
+}
 
 // *** UniKind trait ***
 
@@ -98,7 +115,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
 impl<T: UniKind> Error for UniErrorInner<T> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self.prev_cause() {
-            Some(Cause::UniError(err)) => Some(&**err),
+            Some(Cause::UniError(err)) => Some(&***err),
             Some(Cause::UniStdError(err)) => Some(err),
             Some(Cause::StdError(err)) => Some(err),
             Some(Cause::UniDisplay(_)) | None => None,
