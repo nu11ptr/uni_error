@@ -150,6 +150,7 @@ impl<T: UniKind + Default> UniError<T> {
         Self::new(Default::default(), Some(context.into()), None)
     }
 
+    /// Creates a new `UniError` with a default kind and the boxed error as the cause.
     pub fn from_boxed(error: Box<dyn Error + Send + Sync>) -> Self {
         Self::new(
             Default::default(),
@@ -158,17 +159,13 @@ impl<T: UniKind + Default> UniError<T> {
         )
     }
 
-    pub fn from_kind_boxed(kind: T, error: Box<dyn Error + Send + Sync>) -> Self {
-        Self::new(kind, None, Some(CauseInner::from_boxed_error(error)))
-    }
-
-    pub fn from_kind_context_boxed(
-        kind: T,
+    /// Creates a new `UniError` with a default kind, the provided context and the boxed error as the cause.
+    pub fn from_context_boxed(
         context: impl Into<Cow<'static, str>>,
         error: Box<dyn Error + Send + Sync>,
     ) -> Self {
         Self::new(
-            kind,
+            Default::default(),
             Some(context.into()),
             Some(CauseInner::from_boxed_error(error)),
         )
@@ -188,6 +185,24 @@ impl<T: UniKind> UniError<T> {
                 cause,
             }),
         }
+    }
+
+    /// Creates a new `UniError` with the provided kind and the boxed error as the cause.
+    pub fn from_kind_boxed(kind: T, error: Box<dyn Error + Send + Sync>) -> Self {
+        Self::new(kind, None, Some(CauseInner::from_boxed_error(error)))
+    }
+
+    /// Creates a new `UniError` with the provided kind, the provided context and the boxed error as the cause.
+    pub fn from_kind_context_boxed(
+        kind: T,
+        context: impl Into<Cow<'static, str>>,
+        error: Box<dyn Error + Send + Sync>,
+    ) -> Self {
+        Self::new(
+            kind,
+            Some(context.into()),
+            Some(CauseInner::from_boxed_error(error)),
+        )
     }
 
     /// Creates a new `UniError` with the provided kind and no context or cause.
