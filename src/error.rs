@@ -96,11 +96,13 @@ impl UniKind for () {}
 
 // *** UniErrorInner ***
 
+// NOTE: Each piece of the inner is separated into an independent cloneable so that
+// we have the option to create a new error from parts of an existing error.
 #[derive(Debug)]
 pub(crate) struct UniErrorInner<T> {
-    kind: T,
+    kind: Arc<T>,
     context: Option<Cow<'static, str>>,
-    cause: Option<CauseInner>,
+    cause: Option<Arc<CauseInner>>,
 }
 
 impl<T: UniKind> UniErrorInner<T> {
@@ -149,7 +151,7 @@ impl<T: UniKind> Error for UniErrorInner<T> {
 /// A custom error type that can be used to return an error with a custom error kind.
 #[derive(Debug)]
 pub struct UniError<T> {
-    inner: Arc<UniErrorInner<T>>,
+    inner: Box<UniErrorInner<T>>,
 }
 
 impl<T: UniKind + Default> UniError<T> {
@@ -187,10 +189,10 @@ impl<T: UniKind> UniError<T> {
         cause: Option<CauseInner>,
     ) -> Self {
         Self {
-            inner: Arc::new(UniErrorInner {
-                kind,
+            inner: Box::new(UniErrorInner {
+                kind: Arc::new(kind),
                 context,
-                cause,
+                cause: cause.map(Arc::new),
             }),
         }
     }
@@ -229,10 +231,10 @@ impl<T: UniKind> UniError<T> {
     }
 }
 
-impl<T: Copy> UniError<T> {
-    /// Returns a copy of the custom kind.
-    pub fn kind(&self) -> T {
-        self.inner.kind
+impl<T: Clone> UniError<T> {
+    /// Returns a clone of the custom kind.
+    pub fn kind_clone(&self) -> T {
+        (*self.inner.kind).clone()
     }
 }
 
@@ -299,7 +301,11 @@ impl<T: UniKind> Display for UniError<T> {
 impl<T: UniKind> Clone for UniError<T> {
     fn clone(&self) -> Self {
         Self {
-            inner: Arc::clone(&self.inner),
+            inner: Box::new(UniErrorInner {
+                kind: self.inner.kind.clone(),
+                context: self.inner.context.clone(),
+                cause: self.inner.cause.clone(),
+            }),
         }
     }
 }
