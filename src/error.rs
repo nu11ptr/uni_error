@@ -74,6 +74,14 @@ pub trait UniKind: Debug + Any + Send + Sync {
     fn type_name(&self) -> &'static str {
         type_name::<Self>()
     }
+
+    /// Converts the `UniKind` into a `UniError` with the same kind.
+    fn into_error(self) -> UniError<Self>
+    where
+        Self: Sized,
+    {
+        UniError::from_kind(self)
+    }
 }
 
 impl dyn UniKind {
