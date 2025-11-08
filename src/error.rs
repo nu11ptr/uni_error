@@ -149,6 +149,30 @@ impl<T: UniKind + Default> UniError<T> {
     pub fn from_context(context: impl Into<Cow<'static, str>>) -> Self {
         Self::new(Default::default(), Some(context.into()), None)
     }
+
+    pub fn from_boxed(error: Box<dyn Error + Send + Sync>) -> Self {
+        Self::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_boxed_error(error)),
+        )
+    }
+
+    pub fn from_kind_boxed(kind: T, error: Box<dyn Error + Send + Sync>) -> Self {
+        Self::new(kind, None, Some(CauseInner::from_boxed_error(error)))
+    }
+
+    pub fn from_kind_context_boxed(
+        kind: T,
+        context: impl Into<Cow<'static, str>>,
+        error: Box<dyn Error + Send + Sync>,
+    ) -> Self {
+        Self::new(
+            kind,
+            Some(context.into()),
+            Some(CauseInner::from_boxed_error(error)),
+        )
+    }
 }
 
 impl<T: UniKind> UniError<T> {

@@ -57,6 +57,21 @@ fn test_convert_uni_to_dyn_and_back() {
 }
 
 #[test]
+fn test_wrap_boxed_error_to_uni_and_back() {
+    let err1: Box<dyn std::error::Error + Send + Sync> = FakeError.into();
+    let err2: UniError<TestKind> = UniError::from_boxed(err1);
+    let prev = err2.prev_cause().unwrap();
+
+    assert!(matches!(prev, Cause::StdError(_)));
+    assert!(prev.next().is_none());
+    assert_eq!(prev.type_name(), "dyn core::error::Error");
+    match prev.downcast_ref::<(), FakeError>() {
+        Some(DowncastRef::Error(err)) => assert_eq!(err, &FakeError),
+        _ => panic!("Expected downcast to FakeError"),
+    }
+}
+
+#[test]
 fn test_wrap_error_to_uni() {
     let err1 = FakeError;
     let err2: UniError<TestKind> = err1.into();

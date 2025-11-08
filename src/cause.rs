@@ -76,6 +76,7 @@ impl<'e> Cause<'e> {
         match inner {
             CauseInner::UniError(err) => Cause::UniError(&err),
             CauseInner::UniStdError(err) => Cause::UniStdError(&**err),
+            CauseInner::BoxedStdError(err) => Cause::StdError(&**err),
             CauseInner::UniDisplay(err) => Cause::UniDisplay(&**err),
         }
     }
@@ -193,6 +194,7 @@ impl<'e> Iterator for Chain<'e> {
 pub(crate) enum CauseInner {
     UniError(DynError),
     UniStdError(Box<dyn UniStdError + Send + Sync>),
+    BoxedStdError(Box<dyn Error + Send + Sync>),
     UniDisplay(Box<dyn UniDisplay + Send + Sync>),
 }
 
@@ -203,6 +205,10 @@ impl CauseInner {
 
     pub fn from_error(cause: impl UniStdError) -> CauseInner {
         CauseInner::UniStdError(Box::new(cause))
+    }
+
+    pub fn from_boxed_error(cause: Box<dyn Error + Send + Sync>) -> CauseInner {
+        CauseInner::BoxedStdError(cause)
     }
 
     pub fn from_uni_error<T: UniKind>(cause: UniError<T>) -> CauseInner {
