@@ -56,12 +56,12 @@ impl Deref for DynError {
 pub trait UniKind: Debug + Any + Send + Sync {
     /// The string value of the kind, if any. This is useful for programmatic evaluation
     /// when the type is boxed in the error chain and the type is not known. Defaults to `""`.
-    fn value(&self) -> &str {
-        ""
+    fn value(&self) -> Cow<'static, str> {
+        Cow::Borrowed("")
     }
 
     /// Returns additional context for this specific kind, if any. Defaults to `None`.
-    fn context(&self) -> Option<&str> {
+    fn context(&self) -> Option<Cow<'static, str>> {
         None
     }
 

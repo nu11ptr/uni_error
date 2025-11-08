@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     error::Error,
     fmt::{Display, Formatter},
 };
@@ -15,17 +16,18 @@ pub(crate) enum TestKind {
 }
 
 impl UniKind for TestKind {
-    fn value(&self) -> &str {
+    fn value(&self) -> Cow<'static, str> {
         match self {
             TestKind::Test => "Test",
             TestKind::NotATest => "NotATest",
         }
+        .into()
     }
 
-    fn context(&self) -> Option<&str> {
+    fn context(&self) -> Option<Cow<'static, str>> {
         match self {
             TestKind::Test => None,
-            TestKind::NotATest => Some("This is not a test!"),
+            TestKind::NotATest => Some("This is not a test!".into()),
         }
     }
 

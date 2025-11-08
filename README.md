@@ -9,9 +9,9 @@ A simple, universal error type for Rust
 
 ## Overview
 
-Rust has a great system for handling conditional success in the form of `Result<T, E>`, but using this in practice often leads to reinventing the wheel, esp. when needs are intially unknown.
+Rust has a great system for handling conditional success in the form of `Result<T, E>`, but using this in practice often leads to reinventing the wheel, especially when the program's needs are intially unknown.
 
-I wrote this crate for myself to be my universal error type after I noticed these things in my programs:
+I wrote this crate for myself to be my universal error type after I noticed these trends in my programs:
 
 1. Most simple applications just need a text error for the user. That's it.
 
@@ -95,6 +95,8 @@ fn main() {
 Or use your own kind:
 
 ```rust
+use std::borrow::Cow;
+
 use uni_error::*;
 
 #[derive(Debug, Default)]
@@ -105,10 +107,10 @@ enum MyKind {
 }
 
 impl UniKind for MyKind {
-    fn context(&self) -> Option<&str> {
+    fn context(&self) -> Option<Cow<'static, str>> {
         match self {
             MyKind::SomethingBad => None,
-            MyKind::SomethingWorse(msg) => Some(msg)
+            MyKind::SomethingWorse(msg) => Some(Cow::Borrowed(msg))
         }
     }
 }
@@ -126,7 +128,7 @@ fn main() {
 
 ## FAQ
 
-### How do I simply propigate errors/options/results using the question mark?
+### How do I simply propigate errors/options/results (without further context) using the question mark?
 
 If the error type implements `std::error::Error`, or is `UniError<T>` --> `UniError<T>`/`DynError`:
 

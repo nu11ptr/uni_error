@@ -11,7 +11,7 @@ fn test_kind() {
 
     assert_eq!(kind.type_name(), "test_error::common::TestKind");
     assert_eq!(kind.value(), "NotATest");
-    assert_eq!(kind.context(), Some("This is not a test!"));
+    assert_eq!(kind.context(), Some("This is not a test!".into()));
     assert_eq!(kind.code(), 123);
 }
 
@@ -23,7 +23,7 @@ fn test_dyn_kind() {
 
     assert_eq!(kind.type_name(), "test_error::common::TestKind");
     assert_eq!(kind.value(), "NotATest");
-    assert_eq!(kind.context(), Some("This is not a test!"));
+    assert_eq!(kind.context(), Some("This is not a test!".into()));
     assert_eq!(kind.code(), 123);
 
     match kind.downcast_ref::<TestKind>() {
