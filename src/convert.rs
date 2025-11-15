@@ -2,9 +2,9 @@ use alloc::{borrow::Cow, boxed::Box};
 use core::{error::Error, fmt::Display};
 
 use crate::{
-    CauseInner,
+    CauseInner, SimpleError,
     cause::{UniDisplay, UniStdError},
-    error::{DynError, UniError, UniErrorOps, UniKind, UniResult},
+    error::{DynError, UniError, UniKind, UniResult},
 };
 
 // *** From implementations ***
@@ -15,8 +15,18 @@ impl<T: UniKind + Default, E: UniStdError> From<E> for UniError<T> {
     }
 }
 
-impl<E: UniErrorOps> From<E> for DynError {
+impl<E: UniStdError> From<E> for DynError {
     fn from(err: E) -> Self {
+        DynError::new(SimpleError::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_error(err)),
+        ))
+    }
+}
+
+impl<T: UniKind> From<UniError<T>> for DynError {
+    fn from(err: UniError<T>) -> Self {
         DynError::new(err)
     }
 }
