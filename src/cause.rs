@@ -74,7 +74,7 @@ pub enum Cause<'e> {
 impl<'e> Cause<'e> {
     pub(crate) fn from_inner(inner: &'e CauseInner) -> Cause<'e> {
         match inner {
-            CauseInner::UniError(err) => Cause::UniError(&err),
+            CauseInner::UniError(err) => Cause::UniError(err),
             CauseInner::UniStdError(err) => Cause::UniStdError(&**err),
             CauseInner::BoxedStdError(err) => Cause::StdError(&**err),
             CauseInner::UniDisplay(err) => Cause::UniDisplay(&**err),
@@ -136,8 +136,8 @@ impl<'e> Cause<'e> {
                 Cause::StdError(err) => Cause::StdError(err),
                 Cause::UniDisplay(err) => Cause::UniDisplay(err),
             }),
-            Cause::UniStdError(err) => err.source().map(|err| Cause::StdError(err)),
-            Cause::StdError(err) => err.source().map(|err| Cause::StdError(err)),
+            Cause::UniStdError(err) => err.source().map(Cause::StdError),
+            Cause::StdError(err) => err.source().map(Cause::StdError),
             Cause::UniDisplay(_) => None,
         }
     }

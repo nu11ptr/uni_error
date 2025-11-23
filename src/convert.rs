@@ -18,7 +18,7 @@ impl<T: UniKind + Default, E: UniStdError> From<E> for UniError<T> {
 impl<E: UniStdError> From<E> for DynError {
     fn from(err: E) -> Self {
         DynError::new(SimpleError::new(
-            Default::default(),
+            (),
             None,
             Some(CauseInner::from_error(err)),
         ))

@@ -284,7 +284,7 @@ impl<T: UniKind> UniErrorOps for UniError<T> {
         let mut chain = self.chain();
         let mut root = chain.next();
 
-        while let Some(next) = chain.next() {
+        for next in chain {
             root = Some(next);
         }
         root
