@@ -56,17 +56,17 @@ impl Deref for DynError {
 pub trait UniKind: Debug + Any + Send + Sync {
     /// The string value of the kind, if any. This is useful for programmatic evaluation
     /// when the type is boxed in the error chain and the type is not known. Defaults to `""`.
-    fn value(&self) -> Cow<'static, str> {
+    fn value(&self, _cause: Option<Cause<'_>>) -> Cow<'static, str> {
         Cow::Borrowed("")
     }
 
     /// Returns additional context for this specific kind, if any. Defaults to `None`.
-    fn context(&self) -> Option<Cow<'static, str>> {
+    fn context(&self, _cause: Option<Cause<'_>>) -> Option<Cow<'static, str>> {
         None
     }
 
     /// Returns the code (typically for FFI) for this specific kind. Defaults to -1.
-    fn code(&self) -> i32 {
+    fn code(&self, _cause: Option<Cause<'_>>) -> i32 {
         -1
     }
 
@@ -117,7 +117,9 @@ impl<T: UniKind> Display for UniErrorInner<T> {
             write!(f, "{}", context)?;
         }
 
-        if let Some(context) = self.kind.context() {
+        let cause = self.cause.as_ref().map(|inner| Cause::from_inner(inner));
+        let context = self.kind.context(cause);
+        if let Some(context) = context.as_ref() {
             if self.context.is_some() {
                 write!(f, ": ")?;
             }
@@ -125,7 +127,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
         }
 
         if let Some(cause) = &self.prev_cause() {
-            if self.context.is_some() || self.kind.context().is_some() {
+            if self.context.is_some() || context.is_some() {
                 write!(f, ": ")?;
             }
             write!(f, "{}", cause)?;
@@ -242,6 +244,22 @@ impl<T: Clone> UniError<T> {
 pub trait UniErrorOps: UniDisplay + Deref<Target = dyn Error + Send + Sync + 'static> {
     /// Return a trait object reference to the custom kind.
     fn kind_dyn_ref(&self) -> &dyn UniKind;
+
+    /// Returns the code (typically for FFI) for this specific kind
+    fn kind_code(&self) -> i32 {
+        self.kind_dyn_ref().code(self.prev_cause())
+    }
+
+    /// The string value of the kind, if any. This is useful for programmatic evaluation
+    /// when the type is boxed in the error chain and the type is not known
+    fn kind_value(&self) -> Cow<'static, str> {
+        self.kind_dyn_ref().value(self.prev_cause())
+    }
+
+    /// Returns additional context for this specific kind, if any
+    fn kind_context_str(&self) -> Option<Cow<'static, str>> {
+        self.kind_dyn_ref().context(self.prev_cause())
+    }
 
     /// Returns true if the error is a `SimpleError`.
     fn is_simple(&self) -> bool {

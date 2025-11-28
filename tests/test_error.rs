@@ -1,4 +1,6 @@
-use uni_error::{Cause, DynError, ErrorContext as _, SimpleError, UniError, UniKind as _};
+use uni_error::{
+    Cause, DynError, ErrorContext as _, SimpleError, UniError, UniErrorOps as _, UniKind as _,
+};
 
 use crate::common::{TestError, TestKind};
 
@@ -10,9 +12,9 @@ fn test_kind() {
     let kind = error.kind_ref();
 
     assert_eq!(kind.type_name(), "test_error::common::TestKind");
-    assert_eq!(kind.value(), "NotATest");
-    assert_eq!(kind.context(), Some("This is not a test!".into()));
-    assert_eq!(kind.code(), 123);
+    assert_eq!(error.kind_value(), "NotATest");
+    assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
+    assert_eq!(error.kind_code(), 123);
 }
 
 #[test]
@@ -22,9 +24,9 @@ fn test_dyn_kind() {
     let kind = error.kind_dyn_ref();
 
     assert_eq!(kind.type_name(), "test_error::common::TestKind");
-    assert_eq!(kind.value(), "NotATest");
-    assert_eq!(kind.context(), Some("This is not a test!".into()));
-    assert_eq!(kind.code(), 123);
+    assert_eq!(error.kind_value(), "NotATest");
+    assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
+    assert_eq!(error.kind_code(), 123);
 
     match kind.downcast_ref::<TestKind>() {
         Some(kind) => assert_eq!(kind, &TestKind::NotATest),

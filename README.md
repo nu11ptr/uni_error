@@ -107,7 +107,7 @@ enum MyKind {
 }
 
 impl UniKind for MyKind {
-    fn context(&self) -> Option<Cow<'static, str>> {
+    fn context(&self, cause: Option<Cause<'_>>) -> Option<Cow<'static, str>> {
         match self {
             MyKind::SomethingBad => None,
             MyKind::SomethingWorse(msg) => Some(Cow::Borrowed(msg))

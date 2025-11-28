@@ -189,32 +189,36 @@ pub trait ResultContext<T, U, E> {
     /// Wraps the existing result error with the provided kind.
     fn kind_fn<F>(self, kind: F) -> UniResult<U, T>
     where
-        F: FnOnce() -> T,
+        F: FnOnce(&Self) -> T,
         Self: Sized,
     {
-        self.kind(kind())
+        let kind = kind(&self);
+        self.kind(kind)
     }
 
     /// Wraps the existing result error with the provided context.
     fn context_fn<F, S>(self, context: F) -> UniResult<U, T>
     where
-        F: FnOnce() -> S,
+        F: FnOnce(&Self) -> S,
         S: Into<Cow<'static, str>>,
         T: Default,
         Self: Sized,
     {
-        self.context(context())
+        let context = context(&self);
+        self.context(context)
     }
 
     /// Wraps the existing result error with the provided kind and context.
     fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<U, T>
     where
-        F: FnOnce() -> T,
-        F2: FnOnce() -> S,
+        F: FnOnce(&Self) -> T,
+        F2: FnOnce(&Self) -> S,
         S: Into<Cow<'static, str>>,
         Self: Sized,
     {
-        self.kind_context(kind(), context())
+        let kind = kind(&self);
+        let context = context(&self);
+        self.kind_context(kind, context)
     }
 
     /// Wraps the existing result error with no additional context.
@@ -370,32 +374,36 @@ pub trait ResultContextDisplay<T, U, E> {
     /// Wraps the existing result error with the provided kind.
     fn kind_fn_disp<F>(self, kind: F) -> UniResult<U, T>
     where
-        F: FnOnce() -> T,
+        F: FnOnce(&Self) -> T,
         Self: Sized,
     {
-        self.kind_disp(kind())
+        let kind = kind(&self);
+        self.kind_disp(kind)
     }
 
     /// Wraps the existing result error with the provided context.
     fn context_fn_disp<F, S>(self, context: F) -> UniResult<U, T>
     where
-        F: FnOnce() -> S,
+        F: FnOnce(&Self) -> S,
         S: Into<Cow<'static, str>>,
         T: Default,
         Self: Sized,
     {
-        self.context_disp(context())
+        let context = context(&self);
+        self.context_disp(context)
     }
 
     /// Wraps the existing result error with the provided kind and context.
     fn kind_context_fn_disp<F, F2, S>(self, kind: F, context: F2) -> UniResult<U, T>
     where
-        F: FnOnce() -> T,
-        F2: FnOnce() -> S,
+        F: FnOnce(&Self) -> T,
+        F2: FnOnce(&Self) -> S,
         S: Into<Cow<'static, str>>,
         Self: Sized,
     {
-        self.kind_context_disp(kind(), context())
+        let kind = kind(&self);
+        let context = context(&self);
+        self.kind_context_disp(kind, context)
     }
 
     /// Wraps the existing result error with no additional context (for `Display` types).

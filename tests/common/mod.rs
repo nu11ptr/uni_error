@@ -4,7 +4,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use uni_error::UniKind;
+use uni_error::{Cause, UniKind};
 
 #[derive(Debug, PartialEq, Default)]
 pub(crate) enum TestKind {
@@ -16,7 +16,7 @@ pub(crate) enum TestKind {
 }
 
 impl UniKind for TestKind {
-    fn value(&self) -> Cow<'static, str> {
+    fn value(&self, _cause: Option<Cause<'_>>) -> Cow<'static, str> {
         match self {
             TestKind::Test => "Test",
             TestKind::NotATest => "NotATest",
@@ -24,14 +24,14 @@ impl UniKind for TestKind {
         .into()
     }
 
-    fn context(&self) -> Option<Cow<'static, str>> {
+    fn context(&self, _cause: Option<Cause<'_>>) -> Option<Cow<'static, str>> {
         match self {
             TestKind::Test => None,
             TestKind::NotATest => Some("This is not a test!".into()),
         }
     }
 
-    fn code(&self) -> i32 {
+    fn code(&self, _cause: Option<Cause<'_>>) -> i32 {
         match self {
             TestKind::Test => 42,
             TestKind::NotATest => 123,
