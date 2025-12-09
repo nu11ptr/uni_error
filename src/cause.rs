@@ -21,7 +21,7 @@ pub trait UniStdError: Any + Error + Send + Sync {
     }
 }
 
-impl<T> UniStdError for T where T: Error + Any + Send + Sync {}
+impl<E> UniStdError for E where E: Error + Any + Send + Sync {}
 
 /// Standard `Display` trait with `Any` to allow downcasting.
 pub trait UniDisplay: Display + Debug + Any + Send + Sync {
@@ -32,7 +32,7 @@ pub trait UniDisplay: Display + Debug + Any + Send + Sync {
     }
 }
 
-impl<T> UniDisplay for T where T: Display + Debug + Any + Send + Sync {}
+impl<E> UniDisplay for E where E: Display + Debug + Any + Send + Sync {}
 
 // *** Downcast / FakeError ***
 
@@ -211,7 +211,7 @@ impl CauseInner {
         CauseInner::BoxedStdError(cause)
     }
 
-    pub fn from_uni_error<T: UniKind>(cause: UniError<T>) -> CauseInner {
+    pub fn from_uni_error<K: UniKind>(cause: UniError<K>) -> CauseInner {
         CauseInner::UniError(DynError::new(cause))
     }
 }
