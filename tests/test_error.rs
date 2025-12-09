@@ -18,20 +18,57 @@ fn test_kind() {
 }
 
 #[test]
-fn test_dyn_kind() {
-    let error = UniError::from_kind(TestKind::NotATest);
-    let error: DynError = error.into();
-    let kind = error.kind_dyn_ref();
+fn test_dynerror() {
+    let err = UniError::from_kind(TestKind::NotATest);
+    let error: DynError = err.clone().into();
 
-    assert_eq!(kind.type_name(), "test_error::common::TestKind");
+    assert_eq!(
+        error.type_name(),
+        "uni_error::error::UniError<test_error::common::TestKind>"
+    );
     assert_eq!(error.kind_value(), "NotATest");
     assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
     assert_eq!(error.kind_code(), 123);
 
+    match error.downcast_ref::<TestKind>() {
+        Some(err_ref) => assert_eq!(err_ref, &err),
+        None => panic!("Expected downcast to TestKind"),
+    }
+}
+
+#[test]
+fn test_dyn_kind_code() {
+    let error = UniError::from_kind(TestKind::NotATest).erase_kind_code();
+    assert_eq!(error.kind_value(), "NotATest");
+    assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
+    assert_eq!(error.kind_code(), 123);
+    assert_eq!(error.typed_code(), 123);
+
+    let kind = error.kind_ref();
     match kind.downcast_ref::<TestKind>() {
         Some(kind) => assert_eq!(kind, &TestKind::NotATest),
         None => panic!("Expected downcast to TestKind"),
     }
+
+    assert!(error.into_typed::<TestKind>().is_some());
+}
+
+#[test]
+fn test_dyn_kind_codes() {
+    let error = UniError::from_kind(TestKind::NotATest).erase_kind_codes();
+    assert_eq!(error.kind_value(), "NotATest");
+    assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
+    assert_eq!(error.kind_code(), 123);
+    assert_eq!(error.typed_code(), 123);
+    assert_eq!(error.typed_code2(), 124);
+
+    let kind = error.kind_ref();
+    match kind.downcast_ref::<TestKind>() {
+        Some(kind) => assert_eq!(kind, &TestKind::NotATest),
+        None => panic!("Expected downcast to TestKind"),
+    }
+
+    assert!(error.into_typed::<TestKind>().is_some());
 }
 
 #[test]

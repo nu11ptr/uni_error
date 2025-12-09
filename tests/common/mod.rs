@@ -4,7 +4,7 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use uni_error::{Cause, UniKind};
+use uni_error::{Cause, UniKind, UniKindCode, UniKindCodes};
 
 #[derive(Debug, PartialEq, Default)]
 pub(crate) enum TestKind {
@@ -35,6 +35,28 @@ impl UniKind for TestKind {
         match self {
             TestKind::Test => 42,
             TestKind::NotATest => 123,
+        }
+    }
+}
+
+impl UniKindCode for TestKind {
+    type Code = i32;
+
+    fn typed_code(&self, _cause: Option<Cause<'_>>) -> i32 {
+        match self {
+            TestKind::Test => 42,
+            TestKind::NotATest => 123,
+        }
+    }
+}
+
+impl UniKindCodes for TestKind {
+    type Code2 = u32;
+
+    fn typed_code2(&self, _cause: Option<Cause<'_>>) -> u32 {
+        match self {
+            TestKind::Test => 43,
+            TestKind::NotATest => 124,
         }
     }
 }

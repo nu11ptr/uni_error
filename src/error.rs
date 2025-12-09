@@ -24,6 +24,9 @@ pub type SimpleError = UniError<()>;
 
 // *** DynError ***
 
+// NOTE: If we store a UniErrorOps trait object, we can downcast_ref it, but we can't
+// get access to the inner kind at all. If we store like this, we can't downcast_ref it, but we can
+// get access to the inner kind AND we can rebuild it into a UniError<T> if we need to.
 /// An error type with an erased kind type. It can be used when you
 /// don't know `T` or wish to propagate multiple `T` types. `UniError<T>`
 /// can be recovered via downcasting if `T` is known.
@@ -70,6 +73,11 @@ pub trait UniKind: Debug + Any + Send + Sync {
         -1
     }
 
+    /// Returns a 2nd code (typically for FFI) for this specific kind. Defaults to -1.
+    fn code2(&self, _cause: Option<Cause<'_>>) -> i32 {
+        -1
+    }
+
     /// Returns the concrete type name.
     fn type_name(&self) -> &'static str {
         type_name::<Self>()
@@ -94,24 +102,115 @@ impl dyn UniKind {
 
 impl UniKind for () {}
 
+pub trait UniKindCode: UniKind {
+    type Code;
+
+    fn typed_code(&self, cause: Option<Cause<'_>>) -> Self::Code;
+}
+
+impl<C> dyn UniKindCode<Code = C> {
+    /// Attempts to downcast a `UniKindCode` to a specific concrete type.
+    pub fn downcast_ref<T: UniKindCode<Code = C>>(&self) -> Option<&T> {
+        let err: &dyn Any = self;
+        err.downcast_ref()
+    }
+}
+
+pub trait UniKindCodes: UniKindCode {
+    type Code2;
+
+    fn typed_code2(&self, cause: Option<Cause<'_>>) -> Self::Code2;
+}
+
+impl<C, C2> dyn UniKindCodes<Code = C, Code2 = C2> {
+    /// Attempts to downcast a `UniKind` to a specific concrete type.
+    pub fn downcast_ref<T: UniKindCodes<Code = C, Code2 = C2>>(&self) -> Option<&T> {
+        let err: &dyn Any = self;
+        err.downcast_ref()
+    }
+}
+
 // *** UniErrorInner ***
 
 // NOTE: Each piece of the inner is separated into an independent cloneable so that
 // we have the option to create a new error from parts of an existing error.
 #[derive(Debug)]
-pub(crate) struct UniErrorInner<T> {
+pub(crate) struct UniErrorInner<T: ?Sized> {
     kind: Arc<T>,
     context: Option<Cow<'static, str>>,
     cause: Option<Arc<CauseInner>>,
 }
 
-impl<T: UniKind> UniErrorInner<T> {
-    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
+impl UniErrorInner<dyn UniKind> {
+    fn into_typed<U: UniKind>(self) -> Option<UniErrorInner<U>> {
+        let kind = self.kind as Arc<dyn Any + Send + Sync>;
+        kind.downcast::<U>().ok().map(|kind| UniErrorInner {
+            kind,
+            context: self.context,
+            cause: self.cause,
+        })
+    }
+}
+
+impl<C: 'static> UniErrorInner<dyn UniKindCode<Code = C>> {
+    fn into_typed<U: UniKindCode<Code = C>>(self) -> Option<UniErrorInner<U>> {
+        let kind = self.kind as Arc<dyn Any + Send + Sync>;
+        kind.downcast::<U>().ok().map(|kind| UniErrorInner {
+            kind,
+            context: self.context,
+            cause: self.cause,
+        })
+    }
+}
+
+impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C2>> {
+    fn into_typed<U: UniKindCodes<Code = C, Code2 = C2>>(self) -> Option<UniErrorInner<U>> {
+        let kind = self.kind as Arc<dyn Any + Send + Sync>;
+        kind.downcast::<U>().ok().map(|kind| UniErrorInner {
+            kind,
+            context: self.context,
+            cause: self.cause,
+        })
+    }
+}
+
+impl<T: UniKind + ?Sized> UniErrorInner<T> {
+    fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
         self.cause.as_ref().map(|inner| Cause::from_inner(inner))
     }
 }
 
-impl<T: UniKind> Display for UniErrorInner<T> {
+impl<T: UniKind> UniErrorInner<T> {
+    fn erase_kind(self) -> UniErrorInner<dyn UniKind> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKind>,
+            context: self.context,
+            cause: self.cause,
+        }
+    }
+}
+
+impl<T: UniKindCode> UniErrorInner<T> {
+    fn erase_kind_code(self) -> UniErrorInner<dyn UniKindCode<Code = T::Code>> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKindCode<Code = T::Code>>,
+            context: self.context,
+            cause: self.cause,
+        }
+    }
+}
+
+impl<T: UniKindCodes> UniErrorInner<T> {
+    fn erase_kind_codes(self) -> UniErrorInner<dyn UniKindCodes<Code = T::Code, Code2 = T::Code2>> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKindCodes<Code = T::Code, Code2 = T::Code2>>,
+            context: self.context,
+            cause: self.cause,
+        }
+    }
+}
+
+impl<T: UniKind + ?Sized> Display for UniErrorInner<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if let Some(context) = &self.context {
             write!(f, "{}", context)?;
@@ -137,7 +236,7 @@ impl<T: UniKind> Display for UniErrorInner<T> {
     }
 }
 
-impl<T: UniKind> Error for UniErrorInner<T> {
+impl<T: UniKind + ?Sized> Error for UniErrorInner<T> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self.prev_cause() {
             Some(Cause::UniError(err)) => Some(&***err),
@@ -152,7 +251,7 @@ impl<T: UniKind> Error for UniErrorInner<T> {
 
 /// A custom error type that can be used to return an error with a custom error kind.
 #[derive(Debug)]
-pub struct UniError<T> {
+pub struct UniError<T: ?Sized> {
     inner: Box<UniErrorInner<T>>,
 }
 
@@ -227,9 +326,82 @@ impl<T: UniKind> UniError<T> {
         Self::new(kind, Some(context.into()), None)
     }
 
+    /// Erases the custom kind and returns a `UniError` with a `dyn UniKind` trait object.
+    pub fn erase_kind(self) -> UniError<dyn UniKind> {
+        UniError {
+            inner: Box::new(self.inner.erase_kind()),
+        }
+    }
+}
+
+impl UniError<dyn UniKind> {
+    /// Returns a reference to the custom kind.
+    pub fn kind_dyn_ref(&self) -> &dyn UniKind {
+        self.kind_ref()
+    }
+
+    /// Converts the `UniError` to a `UniError<U>` if the kind is a `UniKind`.
+    pub fn into_typed<U: UniKind>(self) -> Option<UniError<U>> {
+        self.inner.into_typed::<U>().map(|inner| UniError {
+            inner: Box::new(inner),
+        })
+    }
+}
+
+impl<C: 'static> UniError<dyn UniKindCode<Code = C>> {
+    /// Converts the `UniError` to a `UniError<U>` if the kind is a `UniKindCode<Code = C>`.
+    pub fn into_typed<U: UniKindCode<Code = C>>(self) -> Option<UniError<U>> {
+        self.inner.into_typed::<U>().map(|inner| UniError {
+            inner: Box::new(inner),
+        })
+    }
+}
+
+impl<C: 'static, C2: 'static> UniError<dyn UniKindCodes<Code = C, Code2 = C2>> {
+    /// Converts the `UniError` to a `UniError<U>` if the kind is a `UniKindCodes<Code = C, Code2 = C2>`.
+    pub fn into_typed<U: UniKindCodes<Code = C, Code2 = C2>>(self) -> Option<UniError<U>> {
+        self.inner.into_typed::<U>().map(|inner| UniError {
+            inner: Box::new(inner),
+        })
+    }
+}
+
+impl<T: UniKind + ?Sized> UniError<T> {
     /// Returns a reference to the custom kind.
     pub fn kind_ref(&self) -> &T {
         &self.inner.kind
+    }
+}
+
+impl<T: UniKindCode> UniError<T> {
+    /// Erases the custom kind and returns a `UniError` with a `dyn UniKindCode` trait object.
+    pub fn erase_kind_code(self) -> UniError<dyn UniKindCode<Code = T::Code>> {
+        UniError {
+            inner: Box::new(self.inner.erase_kind_code()),
+        }
+    }
+}
+
+impl<T: UniKindCode + ?Sized> UniError<T> {
+    /// Returns the code (typically for FFI) for this specific kind.
+    pub fn typed_code(&self) -> T::Code {
+        self.kind_ref().typed_code(self.prev_cause())
+    }
+}
+
+impl<T: UniKindCodes> UniError<T> {
+    /// Erases the custom kind and returns a `UniError` with a `dyn UniKindCodes` trait object.
+    pub fn erase_kind_codes(self) -> UniError<dyn UniKindCodes<Code = T::Code, Code2 = T::Code2>> {
+        UniError {
+            inner: Box::new(self.inner.erase_kind_codes()),
+        }
+    }
+}
+
+impl<T: UniKindCodes + ?Sized> UniError<T> {
+    /// Returns a 2nd code (typically for FFI) for this specific kind.
+    pub fn typed_code2(&self) -> T::Code2 {
+        self.kind_ref().typed_code2(self.prev_cause())
     }
 }
 
@@ -242,24 +414,18 @@ impl<T: Clone> UniError<T> {
 
 /// A trait that specifies the operations that can be performed on a `UniError`.
 pub trait UniErrorOps: UniDisplay + Deref<Target = dyn Error + Send + Sync + 'static> {
-    /// Return a trait object reference to the custom kind.
-    fn kind_dyn_ref(&self) -> &dyn UniKind;
-
     /// Returns the code (typically for FFI) for this specific kind
-    fn kind_code(&self) -> i32 {
-        self.kind_dyn_ref().code(self.prev_cause())
-    }
+    fn kind_code(&self) -> i32;
+
+    /// Returns a 2nd code (typically for FFI) for this specific kind.
+    fn kind_code2(&self) -> i32;
 
     /// The string value of the kind, if any. This is useful for programmatic evaluation
     /// when the type is boxed in the error chain and the type is not known
-    fn kind_value(&self) -> Cow<'static, str> {
-        self.kind_dyn_ref().value(self.prev_cause())
-    }
+    fn kind_value(&self) -> Cow<'static, str>;
 
     /// Returns additional context for this specific kind, if any
-    fn kind_context_str(&self) -> Option<Cow<'static, str>> {
-        self.kind_dyn_ref().context(self.prev_cause())
-    }
+    fn kind_context_str(&self) -> Option<Cow<'static, str>>;
 
     /// Returns true if the error is a `SimpleError`.
     fn is_simple(&self) -> bool {
@@ -279,15 +445,27 @@ pub trait UniErrorOps: UniDisplay + Deref<Target = dyn Error + Send + Sync + 'st
 
 impl dyn UniErrorOps + Send + Sync {
     /// Attempts to downcast a `DynError` to a reference to a `UniError<T>`.
-    pub fn downcast_ref<T: UniKind>(&self) -> Option<&UniError<T>> {
+    pub fn downcast_ref<T: UniKind + ?Sized>(&self) -> Option<&UniError<T>> {
         let err: &dyn Any = self;
         err.downcast_ref()
     }
 }
 
-impl<T: UniKind> UniErrorOps for UniError<T> {
-    fn kind_dyn_ref(&self) -> &dyn UniKind {
-        self.kind_ref()
+impl<T: UniKind + ?Sized> UniErrorOps for UniError<T> {
+    fn kind_code(&self) -> i32 {
+        self.kind_ref().code(self.prev_cause())
+    }
+
+    fn kind_code2(&self) -> i32 {
+        self.kind_ref().code2(self.prev_cause())
+    }
+
+    fn kind_value(&self) -> Cow<'static, str> {
+        self.kind_ref().value(self.prev_cause())
+    }
+
+    fn kind_context_str(&self) -> Option<Cow<'static, str>> {
+        self.kind_ref().context(self.prev_cause())
     }
 
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
@@ -309,14 +487,14 @@ impl<T: UniKind> UniErrorOps for UniError<T> {
     }
 }
 
-impl<T: UniKind> Display for UniError<T> {
+impl<T: UniKind + ?Sized> Display for UniError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         <UniErrorInner<T> as Display>::fmt(&self.inner, f)
     }
 }
 
 // Manually implement as derive requires T: Clone
-impl<T: UniKind> Clone for UniError<T> {
+impl<T: UniKind + ?Sized> Clone for UniError<T> {
     fn clone(&self) -> Self {
         Self {
             inner: Box::new(UniErrorInner {
@@ -345,7 +523,7 @@ impl<T: UniKind + PartialEq + 'static> PartialEq for UniError<T> {
     }
 }
 
-impl<T: UniKind> Deref for UniError<T> {
+impl<T: UniKind + ?Sized> Deref for UniError<T> {
     type Target = dyn Error + Sync + Send + 'static;
 
     fn deref(&self) -> &Self::Target {
@@ -353,7 +531,7 @@ impl<T: UniKind> Deref for UniError<T> {
     }
 }
 
-impl<T: UniKind> AsRef<dyn Error + Sync + Send> for UniError<T> {
+impl<T: UniKind + ?Sized> AsRef<dyn Error + Sync + Send> for UniError<T> {
     fn as_ref(&self) -> &(dyn Error + Sync + Send + 'static) {
         &**self
     }
