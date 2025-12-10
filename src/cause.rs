@@ -49,7 +49,7 @@ impl Display for FakeError {
 impl Error for FakeError {}
 
 /// A reference to a downcasted error.
-pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
+pub enum DowncastRef<'e, A: 'static, E: Error + 'static> {
     /// A reference to a downcasted error for all non-[`std::error::Error`] types (includes [`UniError`] types)
     Display(&'e A),
     /// A reference to a downcasted error that implements [`std::error::Error`].
