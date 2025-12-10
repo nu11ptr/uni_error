@@ -31,8 +31,8 @@ impl<K: UniKind> From<UniError<K>> for DynError {
     }
 }
 
-/// A wrapper for a `UniError` that implements the `Error` trait. Useful for
-/// converting a `UniError` to a `Box<dyn Error + Send + Sync>` (and back via
+/// A wrapper for a [`UniError`] that implements the [`Error`] trait. Useful for
+/// converting a [`UniError`] to a `Box<dyn Error + Send + Sync>` (and back via
 /// downcasting).
 #[derive(Debug)]
 pub struct StdErrorWrapper<K>(pub UniError<K>);
@@ -55,8 +55,8 @@ impl<K: UniKind> From<UniError<K>> for Box<dyn Error + Send + Sync> {
     }
 }
 
-/// A wrapper for a `DynError` that implements the `Error` trait. Useful for
-/// converting a `DynError` to a `Box<dyn Error + Send + Sync>` (and back via
+/// A wrapper for a [`DynError`] that implements the [`Error`] trait. Useful for
+/// converting a [`DynError`] to a `Box<dyn Error + Send + Sync>` (and back via
 /// downcasting).
 #[derive(Debug)]
 pub struct StdErrorDynWrapper(pub DynError);
@@ -301,12 +301,12 @@ impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T, K> for UniResult<T, K> {
 
 // *** ErrorContextDisplay ***
 
-/// A trait for wrapping an existing error with a additional context (for `Display` types).
+/// A trait for wrapping an existing error with a additional context (for [`Display`] types).
 pub trait ErrorContextDisplay<K> {
-    /// Wraps the existing error with the provided kind (for `Display` types).
+    /// Wraps the existing error with the provided kind (for [`Display`] types).
     fn kind_disp(self, kind: K) -> UniError<K>;
 
-    /// Wraps the existing error with the provided context (for `Display` types).
+    /// Wraps the existing error with the provided context (for [`Display`] types).
     fn context_disp(self, context: impl Into<Cow<'static, str>>) -> UniError<K>
     where
         K: Default;
@@ -314,7 +314,7 @@ pub trait ErrorContextDisplay<K> {
     /// Wraps the existing error with the provided kind and context (for Display types).
     fn kind_context_disp(self, kind: K, context: impl Into<Cow<'static, str>>) -> UniError<K>;
 
-    /// Wraps the existing error with no additional context (for `Display` types).
+    /// Wraps the existing error with no additional context (for [`Display`] types).
     fn wrap_disp(self) -> UniError<K>
     where
         K: Default;
@@ -358,17 +358,17 @@ impl<K: UniKind, D: UniDisplay> ErrorContextDisplay<K> for D {
 
 // *** ResultContextDisplay ***
 
-/// A trait for wrapping an existing result error with a additional context (for `Display` types).
+/// A trait for wrapping an existing result error with a additional context (for [`Display`] types).
 pub trait ResultContextDisplay<K, T, D> {
-    /// Wraps the existing result error with the provided kind (for `Display` types).
+    /// Wraps the existing result error with the provided kind (for [`Display`] types).
     fn kind_disp(self, kind: K) -> UniResult<T, K>;
 
-    /// Wraps the existing result error with the provided context (for `Display` types).
+    /// Wraps the existing result error with the provided context (for [`Display`] types).
     fn context_disp(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>
     where
         K: Default;
 
-    /// Wraps the existing result error with the provided kind and context (for `Display` types).
+    /// Wraps the existing result error with the provided kind and context (for [`Display`] types).
     fn kind_context_disp(self, kind: K, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>;
 
     /// Wraps the existing result error with the provided kind.
@@ -406,7 +406,7 @@ pub trait ResultContextDisplay<K, T, D> {
         self.kind_context_disp(kind, context)
     }
 
-    /// Wraps the existing result error with no additional context (for `Display` types).
+    /// Wraps the existing result error with no additional context (for [`Display`] types).
     fn wrap_disp(self) -> UniResult<T, K>
     where
         K: Default;

@@ -13,7 +13,7 @@ use crate::{
 };
 
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
-/// Standard `Error` trait with `Any` to allow downcasting.
+/// Standard [`Error`] trait with [`Any`] to allow downcasting.
 pub trait UniStdError: Any + Error + Send + Sync {
     /// Returns the concrete type name of the error.
     fn type_name(&self) -> &'static str {
@@ -23,7 +23,7 @@ pub trait UniStdError: Any + Error + Send + Sync {
 
 impl<E> UniStdError for E where E: Error + Any + Send + Sync {}
 
-/// Standard `Display` trait with `Any` to allow downcasting.
+/// Standard [`Display`] trait with [`Any`] to allow downcasting.
 pub trait UniDisplay: Display + Debug + Any + Send + Sync {
     /// Returns the concrete type name of the error.
     fn type_name(&self) -> &'static str {
@@ -50,9 +50,9 @@ impl Error for FakeError {}
 
 /// A reference to a downcasted error.
 pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
-    /// A reference to a downcasted error for all non-`std::error::Error` types (includes `UniError` types)
+    /// A reference to a downcasted error for all non-[`std::error::Error`] types (includes [`UniError`] types)
     Display(&'e A),
-    /// A reference to a downcasted error that implements `std::error::Error`.
+    /// A reference to a downcasted error that implements [`std::error::Error`].
     Error(&'e E),
 }
 
@@ -61,13 +61,13 @@ pub enum DowncastRef<'e, A: 'static = (), E: Error + 'static = FakeError> {
 /// An error in the cause chain.
 #[derive(Copy, Clone, Debug)]
 pub enum Cause<'e> {
-    /// A reference to any of the `UniError` types we wrapped.
+    /// A reference to any of the [`UniError`] types we wrapped.
     UniError(&'e DynError),
-    /// A reference to a `std::error::Error` that we wrapped.
+    /// A reference to a [`std::error::Error`] that we wrapped.
     UniStdError(&'e dyn UniStdError),
-    /// A reference to a`std::error::Error` that was wrapped downstream (obtained via `source`).
+    /// A reference to a [`std::error::Error`] that was wrapped downstream (obtained via [`std::error::Error::source`]).
     StdError(&'e (dyn Error + 'static)),
-    /// A reference to a `std::fmt::Display` that we wrapped.
+    /// A reference to a [`std::fmt::Display`] that we wrapped.
     UniDisplay(&'e dyn UniDisplay),
 }
 
@@ -99,7 +99,7 @@ impl<'e> Cause<'e> {
         }
     }
 
-    /// Attempts to downcast this cause to a specific concrete type (for types NOT implementing `Error`).
+    /// Attempts to downcast this cause to a specific concrete type (for types NOT implementing [`Error`]).
     pub fn downcast_ref_disp<A: 'static>(self) -> Option<&'e A> {
         match self.downcast_ref::<A, FakeError>() {
             Some(DowncastRef::Display(err)) => Some(err),
@@ -107,7 +107,7 @@ impl<'e> Cause<'e> {
         }
     }
 
-    /// Attempts to downcast this cause to a specific concrete type for types implementing `Error`.
+    /// Attempts to downcast this cause to a specific concrete type for types implementing [`Error`].
     pub fn downcast_ref_err<E: Error + 'static>(self) -> Option<&'e E> {
         match self.downcast_ref::<(), E>() {
             Some(DowncastRef::Error(err)) => Some(err),
