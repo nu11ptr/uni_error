@@ -34,52 +34,72 @@ impl<K: UniKind> From<UniError<K>> for DynError {
 // Generic - in case the user isn't using Axum or wants to modify before returning.
 #[cfg(any(feature = "http_code", feature = "axum_code"))]
 impl<K: crate::error::UniKindCode<Code = http::StatusCode>> From<UniError<K>>
-    for (http::StatusCode, String)
+    for (http::StatusCode, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
-        (err.typed_code(), err.to_string())
+        (
+            err.typed_code(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
     }
 }
 
 // Generic - in case the user isn't using Axum or wants to modify before returning.
 #[cfg(any(feature = "http_code2", feature = "axum_code2"))]
 impl<K: crate::error::UniKindCodes<Code2 = http::StatusCode>> From<UniError<K>>
-    for (http::StatusCode, String)
+    for (http::StatusCode, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
-        (err.typed_code2(), err.to_string())
+        (
+            err.typed_code2(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
     }
 }
 
 // Generic - in case the user wants to modify before returning.
 #[cfg(feature = "tonic_code")]
-impl<K: crate::error::UniKindCode<Code = tonic::Code>> From<UniError<K>> for (tonic::Code, String) {
+impl<K: crate::error::UniKindCode<Code = tonic::Code>> From<UniError<K>>
+    for (tonic::Code, alloc::string::String)
+{
     fn from(err: UniError<K>) -> Self {
-        (err.typed_code(), err.to_string())
+        (
+            err.typed_code(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
     }
 }
 
 #[cfg(feature = "tonic_code")]
 impl<K: crate::error::UniKindCode<Code = tonic::Code>> From<UniError<K>> for tonic::Status {
     fn from(err: UniError<K>) -> Self {
-        tonic::Status::new(err.typed_code(), err.to_string())
+        tonic::Status::new(
+            err.typed_code(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
     }
 }
 
 // Generic - in case the user wants to modify before returning.
 #[cfg(feature = "tonic_code2")]
 impl<K: crate::error::UniKindCodes<Code2 = tonic::Code>> From<UniError<K>>
-    for (tonic::Code, String)
+    for (tonic::Code, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
-        (err.typed_code2(), err.to_string())
+        (
+            err.typed_code2(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
     }
 }
 
 #[cfg(feature = "tonic_code2")]
 impl<K: crate::error::UniKindCodes<Code2 = tonic::Code>> From<UniError<K>> for tonic::Status {
     fn from(err: UniError<K>) -> Self {
-        tonic::Status::new(err.typed_code2(), err.to_string())
+        tonic::Status::new(
+            err.typed_code2(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
     }
 }
 
@@ -90,7 +110,11 @@ impl<K: crate::error::UniKindCode<Code = http::StatusCode>> axum::response::Into
     for UniError<K>
 {
     fn into_response(self) -> axum::response::Response {
-        (self.typed_code(), self.to_string()).into_response()
+        (
+            self.typed_code(),
+            <UniError<K> as alloc::string::ToString>::to_string(&self),
+        )
+            .into_response()
     }
 }
 
@@ -99,7 +123,11 @@ impl<K: crate::error::UniKindCodes<Code2 = http::StatusCode>> axum::response::In
     for UniError<K>
 {
     fn into_response(self) -> axum::response::Response {
-        (self.typed_code2(), self.to_string()).into_response()
+        (
+            self.typed_code2(),
+            <UniError<K> as alloc::string::ToString>::to_string(&self),
+        )
+            .into_response()
     }
 }
 
