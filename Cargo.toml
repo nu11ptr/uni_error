@@ -11,11 +11,36 @@ categories = ["rust-patterns", "no-std"]
 readme = "README.md"
 edition = "2024"
 
-[dependencies]
-
 [features]
 default = ["std"]
 std = []
+
+# Axum specific IntoResponse implementation. Enable one or the other, not both.
+axum_code = ["axum", "http"]
+axum_code2 = ["axum", "http"]
+# Generic HTTP status code (if not using Axum). Enable one or the other, not both.
+http_code = ["http"]
+http_code2 = ["http"]
+# Tonic specific Code/Status implementation. Enable one or the other, not both.
+tonic_code = ["tonic"]
+tonic_code2 = ["tonic"]
+
+[dependencies.axum]
+# Axum hasn't hit 1.0 yet, and 0.1 and up implement IntoResponse the way we need, so make this as broad as possible.
+version = "> 0.1, < 2.0"
+default-features = false
+optional = true
+
+[dependencies.http]
+version = "1"
+default-features = false
+optional = true
+
+[dependencies.tonic]
+# Tonic hasn't hit 1.0 yet, and 0.1 and up implement Code/Status the way we need, so make this as broad as possible.
+version = ">= 0.1, < 2.0"
+default-features = false
+optional = true
 
 [package.metadata.docs.rs]
 all-features = true

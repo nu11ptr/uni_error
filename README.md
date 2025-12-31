@@ -35,7 +35,8 @@ cargo add uni_error
 * Both type safe and dynamic (string/integer) error kind
 * Dereferences to stdlib `Error` trait
 * Implements `Clone`
-* No dependencies
+* Optional: Auto convert into [http::StatusCode](https://docs.rs/http/latest/http/status/struct.StatusCode.html), [axum::response::Response](https://docs.rs/http/latest/http/response/struct.Response.html), or [tonic::Status](https://docs.rs/tonic/latest/tonic/struct.Status.html)
+* No required dependencies
 * No macros
 * No `unsafe`
 * Optionally `no_std` (without loss of functionality)

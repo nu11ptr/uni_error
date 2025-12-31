@@ -31,6 +31,78 @@ impl<K: UniKind> From<UniError<K>> for DynError {
     }
 }
 
+// Generic - in case the user isn't using Axum or wants to modify before returning.
+#[cfg(any(feature = "http_code", feature = "axum_code"))]
+impl<K: crate::error::UniKindCode<Code = http::StatusCode>> From<UniError<K>>
+    for (http::StatusCode, String)
+{
+    fn from(err: UniError<K>) -> Self {
+        (err.typed_code(), err.to_string())
+    }
+}
+
+// Generic - in case the user isn't using Axum or wants to modify before returning.
+#[cfg(any(feature = "http_code2", feature = "axum_code2"))]
+impl<K: crate::error::UniKindCodes<Code2 = http::StatusCode>> From<UniError<K>>
+    for (http::StatusCode, String)
+{
+    fn from(err: UniError<K>) -> Self {
+        (err.typed_code2(), err.to_string())
+    }
+}
+
+// Generic - in case the user wants to modify before returning.
+#[cfg(feature = "tonic_code")]
+impl<K: crate::error::UniKindCode<Code = tonic::Code>> From<UniError<K>> for (tonic::Code, String) {
+    fn from(err: UniError<K>) -> Self {
+        (err.typed_code(), err.to_string())
+    }
+}
+
+#[cfg(feature = "tonic_code")]
+impl<K: crate::error::UniKindCode<Code = tonic::Code>> From<UniError<K>> for tonic::Status {
+    fn from(err: UniError<K>) -> Self {
+        tonic::Status::new(err.typed_code(), err.to_string())
+    }
+}
+
+// Generic - in case the user wants to modify before returning.
+#[cfg(feature = "tonic_code2")]
+impl<K: crate::error::UniKindCodes<Code2 = tonic::Code>> From<UniError<K>>
+    for (tonic::Code, String)
+{
+    fn from(err: UniError<K>) -> Self {
+        (err.typed_code2(), err.to_string())
+    }
+}
+
+#[cfg(feature = "tonic_code2")]
+impl<K: crate::error::UniKindCodes<Code2 = tonic::Code>> From<UniError<K>> for tonic::Status {
+    fn from(err: UniError<K>) -> Self {
+        tonic::Status::new(err.typed_code2(), err.to_string())
+    }
+}
+
+// *** IntoResponse ***
+
+#[cfg(feature = "axum_code")]
+impl<K: crate::error::UniKindCode<Code = http::StatusCode>> axum::response::IntoResponse
+    for UniError<K>
+{
+    fn into_response(self) -> axum::response::Response {
+        (self.typed_code(), self.to_string()).into_response()
+    }
+}
+
+#[cfg(feature = "axum_code2")]
+impl<K: crate::error::UniKindCodes<Code2 = http::StatusCode>> axum::response::IntoResponse
+    for UniError<K>
+{
+    fn into_response(self) -> axum::response::Response {
+        (self.typed_code2(), self.to_string()).into_response()
+    }
+}
+
 /// A wrapper for a [`UniError`] that implements the [`Error`] trait. Useful for
 /// converting a [`UniError`] to a `Box<dyn Error + Send + Sync>` (and back via
 /// downcasting).
