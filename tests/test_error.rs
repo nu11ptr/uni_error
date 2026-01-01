@@ -1,4 +1,6 @@
-use uni_error::{Cause, ErrorContext as _, SimpleError, UniError, UniKind};
+use uni_error::cause::Cause;
+use uni_error::convert::ErrorContext as _;
+use uni_error::{SimpleError, UniError, UniKind};
 
 use crate::common::{TestError, TestKind};
 

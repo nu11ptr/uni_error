@@ -3,9 +3,9 @@ mod common;
 use std::error::Error as _;
 
 use common::{TestError, TestKind};
-use uni_error::{
-    Cause, Downcast, ErrorContext as _, ErrorContextDisplay as _, FakeError, SimpleError, UniError,
-};
+use uni_error::cause::{Cause, Downcast, FakeError};
+use uni_error::convert::{ErrorContext as _, ErrorContextDisplay as _};
+use uni_error::{SimpleError, UniError};
 
 #[test]
 fn test_cause_with_error_root() {

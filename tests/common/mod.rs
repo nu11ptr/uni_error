@@ -4,7 +4,8 @@ use std::{
     fmt::{Display, Formatter},
 };
 
-use uni_error::{Cause, UniKind, UniKindCode, UniKindCodes};
+use uni_error::cause::Cause;
+use uni_error::{UniKind, UniKindCode, UniKindCodes};
 
 #[derive(Debug, PartialEq, Default)]
 pub(crate) enum TestKind {

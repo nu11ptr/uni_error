@@ -1,5 +1,7 @@
 mod common;
 
+use uni_error::cause::*;
+use uni_error::convert::*;
 use uni_error::*;
 
 use crate::common::TestKind;
