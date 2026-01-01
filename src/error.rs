@@ -202,9 +202,25 @@ impl<K: UniKind + ?Sized> UniErrorInner<K> {
     fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
         self.cause.as_ref().map(|inner| Cause::from_inner(inner))
     }
+
+    fn is_simple(&self) -> bool {
+        <UniErrorInner<K> as Any>::type_id(self) == TypeId::of::<UniErrorInner<()>>()
+    }
 }
 
 impl<K: UniKind> UniErrorInner<K> {
+    pub(crate) fn new(
+        kind: K,
+        context: Option<Cow<'static, str>>,
+        cause: Option<CauseInner>,
+    ) -> Self {
+        Self {
+            kind: Arc::new(kind),
+            context,
+            cause: cause.map(Arc::new),
+        }
+    }
+
     fn into_dyn_kind(self) -> UniErrorInner<dyn UniKind> {
         UniErrorInner {
             kind: self.kind as Arc<dyn UniKind>,
@@ -262,6 +278,34 @@ impl<K: UniKind + ?Sized> Display for UniErrorInner<K> {
     }
 }
 
+impl<K: UniKind + PartialEq + ?Sized> PartialEq for UniErrorInner<K> {
+    fn eq(&self, other: &Self) -> bool {
+        // Kind values must be equal at minimum
+        if self.kind == other.kind {
+            // If the kind is `()`, then the context must be equal, otherwise
+            // kind equality alone is sufficient
+            if self.is_simple() {
+                self.context == other.context
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+}
+
+// Manually implement as derive requires K: Clone
+impl<K: UniKind + ?Sized> Clone for UniErrorInner<K> {
+    fn clone(&self) -> Self {
+        Self {
+            kind: self.kind.clone(),
+            context: self.context.clone(),
+            cause: self.cause.clone(),
+        }
+    }
+}
+
 impl<K: UniKind + ?Sized> Error for UniErrorInner<K> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self.prev_cause() {
@@ -316,11 +360,7 @@ impl<K: UniKind> UniError<K> {
         cause: Option<CauseInner>,
     ) -> Self {
         Self {
-            inner: UniErrorInner {
-                kind: Arc::new(kind),
-                context,
-                cause: cause.map(Arc::new),
-            },
+            inner: UniErrorInner::new(kind, context, cause),
         }
     }
 
@@ -459,8 +499,8 @@ impl<K: UniKind + ?Sized> UniError<K> {
     }
 
     /// Returns true if the error is a [`SimpleError`].
-    fn is_simple(&self) -> bool {
-        self.type_id() == TypeId::of::<SimpleError>()
+    pub fn is_simple(&self) -> bool {
+        self.inner.is_simple()
     }
 
     /// Returns the code (typically for FFI) for this specific kind
@@ -558,29 +598,14 @@ impl<K: UniKind + ?Sized> Display for UniError<K> {
 impl<K: UniKind + ?Sized> Clone for UniError<K> {
     fn clone(&self) -> Self {
         Self {
-            inner: UniErrorInner {
-                kind: self.inner.kind.clone(),
-                context: self.inner.context.clone(),
-                cause: self.inner.cause.clone(),
-            },
+            inner: self.inner.clone(),
         }
     }
 }
 
 impl<K: UniKind + PartialEq + ?Sized + 'static> PartialEq for UniError<K> {
     fn eq(&self, other: &Self) -> bool {
-        // Kind values must be equal at minimum
-        if self.inner.kind == other.inner.kind {
-            // If the kind is `()`, then the context must be equal, otherwise
-            // kind equality alone is sufficient
-            if self.is_simple() {
-                self.inner.context == other.inner.context
-            } else {
-                true
-            }
-        } else {
-            false
-        }
+        self.inner.eq(&other.inner)
     }
 }
 
