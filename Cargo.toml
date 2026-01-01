@@ -16,14 +16,14 @@ default = ["std"]
 std = []
 
 # Axum specific IntoResponse implementation. Enable one or the other, not both.
-axum_code = ["axum", "http"]
-axum_code2 = ["axum", "http"]
+axum_code = ["dep:axum", "dep:http"]
+axum_code2 = ["dep:axum", "dep:http"]
 # Generic HTTP status code (if not using Axum). Enable one or the other, not both.
-http_code = ["http"]
-http_code2 = ["http"]
+http_code = ["dep:http"]
+http_code2 = ["dep:http"]
 # Tonic specific Code/Status implementation. Enable one or the other, not both.
-tonic_code = ["tonic"]
-tonic_code2 = ["tonic"]
+tonic_code = ["dep:tonic"]
+tonic_code2 = ["dep:tonic"]
 
 [dependencies.axum]
 # Axum hasn't hit 1.0 yet, and 0.1 and up implement IntoResponse the way we need, so make this as broad as possible.
