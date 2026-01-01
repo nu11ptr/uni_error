@@ -6,7 +6,7 @@ use core::{
     ops::Deref,
 };
 
-use crate::cause::{Cause, CauseInner, Chain, UniDisplay};
+use crate::cause::{Cause, CauseInner, Chain};
 
 // *** Type aliases ***
 
@@ -457,6 +457,54 @@ impl<K: UniKind + ?Sized> UniError<K> {
     pub fn kind_ref(&self) -> &K {
         &self.inner.kind
     }
+
+    /// Returns true if the error is a [`SimpleError`].
+    fn is_simple(&self) -> bool {
+        self.type_id() == TypeId::of::<SimpleError>()
+    }
+
+    /// Returns the code (typically for FFI) for this specific kind
+    pub fn kind_code(&self) -> i32 {
+        self.kind_ref().code(self.prev_cause())
+    }
+
+    /// Returns a 2nd code (typically for FFI) for this specific kind.
+    pub fn kind_code2(&self) -> i32 {
+        self.kind_ref().code2(self.prev_cause())
+    }
+
+    /// The string value of the kind, if any. This is useful for programmatic evaluation
+    /// when the type is boxed in the error chain and the type is not known
+    pub fn kind_value(&self) -> Cow<'static, str> {
+        self.kind_ref().value(self.prev_cause())
+    }
+
+    /// Returns additional context for this specific kind, if any
+    pub fn kind_context_str(&self) -> Option<Cow<'static, str>> {
+        self.kind_ref().context(self.prev_cause())
+    }
+
+    /// Returns a reference to the first entry in the cause chain.
+    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
+        self.inner.prev_cause()
+    }
+
+    /// Returns an iterator over the cause chain.
+    pub fn chain(&self) -> Chain<'_> {
+        Chain::new(self.prev_cause())
+    }
+
+    // TODO: Remove Option and make 'self' a possible candidate?
+    /// Returns the root cause of this error. If `None` is returned then this error is the root cause.
+    pub fn root_cause(&self) -> Option<Cause<'_>> {
+        let mut chain = self.chain();
+        let mut root = chain.next();
+
+        for next in chain {
+            root = Some(next);
+        }
+        root
+    }
 }
 
 impl<K: UniKindCode> UniError<K> {
@@ -497,81 +545,6 @@ impl<K: Clone> UniError<K> {
     /// Returns a clone of the custom kind.
     pub fn kind_clone(&self) -> K {
         (*self.inner.kind).clone()
-    }
-}
-
-/// A trait that specifies the operations that can be performed on a [`UniError`].
-pub trait UniErrorOps: UniDisplay + Deref<Target = dyn Error + Send + Sync + 'static> {
-    /// Returns the code (typically for FFI) for this specific kind
-    fn kind_code(&self) -> i32;
-
-    /// Returns a 2nd code (typically for FFI) for this specific kind.
-    fn kind_code2(&self) -> i32;
-
-    /// The string value of the kind, if any. This is useful for programmatic evaluation
-    /// when the type is boxed in the error chain and the type is not known
-    fn kind_value(&self) -> Cow<'static, str>;
-
-    /// Returns additional context for this specific kind, if any
-    fn kind_context_str(&self) -> Option<Cow<'static, str>>;
-
-    /// Returns true if the error is a [`SimpleError`].
-    fn is_simple(&self) -> bool {
-        self.type_id() == TypeId::of::<SimpleError>()
-    }
-
-    /// Returns a reference to the first entry in the cause chain.
-    fn prev_cause<'e>(&'e self) -> Option<Cause<'e>>;
-
-    /// Returns an iterator over the cause chain.
-    fn chain(&self) -> Chain<'_>;
-
-    // TODO: Remove Option and make 'self' a possible candidate
-    /// Returns the root cause of this error. If `None` is returned then this error is the root cause.
-    fn root_cause(&self) -> Option<Cause<'_>>;
-}
-
-impl dyn UniErrorOps + Send + Sync {
-    /// Attempts to downcast a [`DynError`] to a reference to a `UniError<T>`.
-    pub fn downcast_ref<K: UniKind + ?Sized>(&self) -> Option<&UniError<K>> {
-        let err: &dyn Any = self;
-        err.downcast_ref()
-    }
-}
-
-impl<K: UniKind + ?Sized> UniErrorOps for UniError<K> {
-    fn kind_code(&self) -> i32 {
-        self.kind_ref().code(self.prev_cause())
-    }
-
-    fn kind_code2(&self) -> i32 {
-        self.kind_ref().code2(self.prev_cause())
-    }
-
-    fn kind_value(&self) -> Cow<'static, str> {
-        self.kind_ref().value(self.prev_cause())
-    }
-
-    fn kind_context_str(&self) -> Option<Cow<'static, str>> {
-        self.kind_ref().context(self.prev_cause())
-    }
-
-    fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
-        self.inner.prev_cause()
-    }
-
-    fn chain(&self) -> Chain<'_> {
-        Chain::new(self.prev_cause())
-    }
-
-    fn root_cause(&self) -> Option<Cause<'_>> {
-        let mut chain = self.chain();
-        let mut root = chain.next();
-
-        for next in chain {
-            root = Some(next);
-        }
-        root
     }
 }
 

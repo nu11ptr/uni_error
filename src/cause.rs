@@ -7,7 +7,7 @@ use core::{
     fmt::{Debug, Display},
 };
 
-use crate::error::{UniError, UniErrorOps, UniKind};
+use crate::error::{UniError, UniKind};
 
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard [`Error`] trait with [`Any`] to allow downcasting.
@@ -155,7 +155,7 @@ impl<'e> Cause<'e> {
 impl<'e> Display for Cause<'e> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
-            Cause::UniError(err) => <dyn UniErrorOps as Display>::fmt(err, f),
+            Cause::UniError(err) => <UniError<dyn UniKind> as Display>::fmt(err, f),
             Cause::UniStdError(err) => <dyn UniStdError as Display>::fmt(err, f),
             Cause::StdError(err) => <dyn Error as Display>::fmt(err, f),
             Cause::UniDisplay(err) => <dyn UniDisplay as Display>::fmt(err, f),

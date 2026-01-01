@@ -5,7 +5,6 @@ use std::error::Error as _;
 use common::{TestError, TestKind};
 use uni_error::{
     Cause, Downcast, ErrorContext as _, ErrorContextDisplay as _, FakeError, SimpleError, UniError,
-    UniErrorOps,
 };
 
 #[test]
