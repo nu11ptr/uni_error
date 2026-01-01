@@ -131,7 +131,7 @@ fn main() {
 
 ### How do I simply propigate errors/options/results (without further context) using the question mark?
 
-If the error type implements `std::error::Error`, or is `UniError<T>` --> `UniError<T>`/`DynError`:
+If the error type implements `std::error::Error`, or is `UniError<T>` --> `UniError<T>`:
 
 ```text
 result?
@@ -160,8 +160,6 @@ result.wrap_disp()?
 `UniError<T>`: if kind is equal, errors are equal
 
 `SimpleError`: if context is equal, errors are equal
-
-`DynError`: must downcast to `UniError<T>` to get equality currently
 
 ## Status
 
