@@ -1,16 +1,13 @@
 // *** Enriched traits ***
 
-use alloc::boxed::Box;
+use alloc::{borrow::Cow, boxed::Box};
 use core::{
     any::{Any, type_name, type_name_of_val},
     error::Error,
     fmt::{Debug, Display},
 };
 
-use crate::{
-    UniError, UniKind,
-    error::{DynError, UniErrorOps},
-};
+use crate::error::{UniError, UniErrorOps, UniKind};
 
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard [`Error`] trait with [`Any`] to allow downcasting.
@@ -49,11 +46,13 @@ impl Display for FakeError {
 impl Error for FakeError {}
 
 /// A reference to a downcasted error.
-pub enum DowncastRef<'e, A: 'static, E: Error + 'static> {
-    /// A reference to a downcasted error for all non-[`std::error::Error`] types (includes [`UniError`] types)
-    Display(&'e A),
+pub enum Downcast<'e, A: 'static, E: Error + 'static, K: UniKind> {
+    /// A reference to a downcasted error for all non-[`std::error::Error`] types
+    DisplayRef(&'e A),
     /// A reference to a downcasted error that implements [`std::error::Error`].
-    Error(&'e E),
+    ErrorRef(&'e E),
+    /// A [`UniError<K>`]. Not actually downcasted, but reconstructed.
+    UniError(UniError<K>),
 }
 
 // *** Cause ***
@@ -62,7 +61,7 @@ pub enum DowncastRef<'e, A: 'static, E: Error + 'static> {
 #[derive(Copy, Clone, Debug)]
 pub enum Cause<'e> {
     /// A reference to any of the [`UniError`] types we wrapped.
-    UniError(&'e DynError),
+    UniError(&'e UniError<dyn UniKind>),
     /// A reference to a [`std::error::Error`] that we wrapped.
     UniStdError(&'e dyn UniStdError),
     /// A reference to a [`std::error::Error`] that was wrapped downstream (obtained via [`std::error::Error::source`]).
@@ -90,40 +89,50 @@ impl<'e> Cause<'e> {
     }
 
     /// Attempts to downcast this cause to a specific concrete type.
-    pub fn downcast_ref<A: 'static, E: Error + 'static>(self) -> Option<DowncastRef<'e, A, E>> {
+    pub fn downcast<A: 'static, E: Error + 'static, K: UniKind>(
+        self,
+    ) -> Option<Downcast<'e, A, E, K>> {
         match self {
-            Cause::UniError(err) => Self::any_downcast_ref(&**err).map(DowncastRef::Display),
-            Cause::UniStdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
-            Cause::StdError(err) => Self::error_downcast_ref(err).map(DowncastRef::Error),
-            Cause::UniDisplay(err) => Self::any_downcast_ref(err).map(DowncastRef::Display),
+            Cause::UniError(err) => err.to_typed_kind::<K>().map(Downcast::UniError),
+            Cause::UniStdError(err) => Self::error_downcast_ref(err).map(Downcast::ErrorRef),
+            Cause::StdError(err) => Self::error_downcast_ref(err).map(Downcast::ErrorRef),
+            Cause::UniDisplay(err) => Self::any_downcast_ref(err).map(Downcast::DisplayRef),
+        }
+    }
+
+    /// Not technically a downcast, but attempts to reconstruct a [`UniError<K>`] from a [`Cause`].
+    pub fn downcast_uni<K: UniKind>(self) -> Option<UniError<K>> {
+        match self {
+            Cause::UniError(err) => err.to_typed_kind::<K>(),
+            _ => None,
         }
     }
 
     /// Attempts to downcast this cause to a specific concrete type (for types NOT implementing [`Error`]).
     pub fn downcast_ref_disp<A: 'static>(self) -> Option<&'e A> {
-        match self.downcast_ref::<A, FakeError>() {
-            Some(DowncastRef::Display(err)) => Some(err),
+        match self.downcast::<A, FakeError, ()>() {
+            Some(Downcast::DisplayRef(err)) => Some(err),
             _ => None,
         }
     }
 
     /// Attempts to downcast this cause to a specific concrete type for types implementing [`Error`].
     pub fn downcast_ref_err<E: Error + 'static>(self) -> Option<&'e E> {
-        match self.downcast_ref::<(), E>() {
-            Some(DowncastRef::Error(err)) => Some(err),
+        match self.downcast::<(), E, ()>() {
+            Some(Downcast::ErrorRef(err)) => Some(err),
             _ => None,
         }
     }
 
     /// Return the actual type name of the cause.
     // NOTE: This will only give the trait object name for downstream errors before UniError wrapping was applied.
-    pub fn type_name(self) -> &'static str {
+    pub fn type_name(self) -> Cow<'static, str> {
         match self {
-            Cause::UniError(err) => err.type_name(),
-            Cause::UniStdError(err) => UniStdError::type_name(err),
+            Cause::UniError(err) => err.type_name().into(),
+            Cause::UniStdError(err) => UniStdError::type_name(err).into(),
             // This won't give us anything useful, but it's the best we can do to maintain consistency
-            Cause::StdError(err) => type_name_of_val(err),
-            Cause::UniDisplay(err) => err.type_name(),
+            Cause::StdError(err) => type_name_of_val(err).into(),
+            Cause::UniDisplay(err) => err.type_name().into(),
         }
     }
 
@@ -146,7 +155,7 @@ impl<'e> Cause<'e> {
 impl<'e> Display for Cause<'e> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
-            Cause::UniError(err) => <dyn UniErrorOps as Display>::fmt(&**err, f),
+            Cause::UniError(err) => <dyn UniErrorOps as Display>::fmt(err, f),
             Cause::UniStdError(err) => <dyn UniStdError as Display>::fmt(err, f),
             Cause::StdError(err) => <dyn Error as Display>::fmt(err, f),
             Cause::UniDisplay(err) => <dyn UniDisplay as Display>::fmt(err, f),
@@ -192,7 +201,7 @@ impl<'e> Iterator for Chain<'e> {
 
 #[derive(Debug)]
 pub(crate) enum CauseInner {
-    UniError(DynError),
+    UniError(UniError<dyn UniKind>),
     UniStdError(Box<dyn UniStdError + Send + Sync>),
     BoxedStdError(Box<dyn Error + Send + Sync>),
     UniDisplay(Box<dyn UniDisplay + Send + Sync>),
@@ -212,6 +221,6 @@ impl CauseInner {
     }
 
     pub fn from_uni_error<K: UniKind>(cause: UniError<K>) -> CauseInner {
-        CauseInner::UniError(DynError::new(cause))
+        CauseInner::UniError(cause.into_dyn_kind())
     }
 }

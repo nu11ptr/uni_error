@@ -4,8 +4,8 @@ use std::error::Error as _;
 
 use common::{TestError, TestKind};
 use uni_error::{
-    Cause, DowncastRef, ErrorContext as _, ErrorContextDisplay as _, FakeError, SimpleError,
-    UniError, UniErrorOps,
+    Cause, Downcast, ErrorContext as _, ErrorContextDisplay as _, FakeError, SimpleError, UniError,
+    UniErrorOps,
 };
 
 #[test]
@@ -46,20 +46,20 @@ fn test_cause_with_error_root() {
     assert_eq!(cause2.type_name(), "test_cause::common::TestError");
     assert_eq!(cause1.type_name(), "dyn core::error::Error");
 
-    match cause4.downcast_ref::<UniError<TestKind>, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err4),
+    match cause4.downcast::<(), FakeError, TestKind>() {
+        Some(Downcast::UniError(err)) => assert_eq!(err, err4),
         _ => panic!("Expected downcast to UniError<TestKind>"),
     }
-    match cause3.downcast_ref::<SimpleError, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err3),
+    match cause3.downcast::<(), FakeError, ()>() {
+        Some(Downcast::UniError(err)) => assert_eq!(err, err3),
         _ => panic!("Expected downcast to SimpleError"),
     }
-    match cause2.downcast_ref::<(), TestError>() {
-        Some(DowncastRef::Error(err)) => assert_eq!(err, &err2),
+    match cause2.downcast::<(), TestError, ()>() {
+        Some(Downcast::ErrorRef(err)) => assert_eq!(err, &err2),
         _ => panic!("Expected downcast to TestError"),
     }
-    match cause1.downcast_ref::<(), TestError>() {
-        Some(DowncastRef::Error(err)) => assert_eq!(err, &err1),
+    match cause1.downcast::<(), TestError, ()>() {
+        Some(Downcast::ErrorRef(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to TestError"),
     }
 
@@ -98,12 +98,12 @@ fn test_cause_with_display_root() {
     assert_eq!(cause2.type_name(), "uni_error::error::UniError<()>");
     assert_eq!(cause1.type_name(), "&str");
 
-    match cause2.downcast_ref::<SimpleError, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err2),
+    match cause2.downcast::<(), FakeError, ()>() {
+        Some(Downcast::UniError(err)) => assert_eq!(err, err2),
         _ => panic!("Expected downcast to SimpleError"),
     }
-    match cause1.downcast_ref::<&str, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
+    match cause1.downcast::<&str, FakeError, ()>() {
+        Some(Downcast::DisplayRef(err)) => assert_eq!(err, &err1),
         _ => panic!("Expected downcast to &str"),
     }
 

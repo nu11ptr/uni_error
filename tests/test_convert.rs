@@ -13,8 +13,8 @@ fn test_wrap_simple_to_uni() {
     assert!(matches!(prev, Cause::UniError(_)));
     assert!(prev.next().is_none());
     assert_eq!(prev.type_name(), "uni_error::error::UniError<()>");
-    match prev.downcast_ref::<SimpleError, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
+    match prev.downcast::<(), FakeError, ()>() {
+        Some(Downcast::UniError(err)) => assert_eq!(err, err1),
         _ => panic!("Expected downcast to SimpleError"),
     }
 }
@@ -31,26 +31,45 @@ fn test_wrap_uni_to_simple() {
         prev.type_name(),
         "uni_error::error::UniError<test_convert::common::TestKind>"
     );
-    match prev.downcast_ref::<UniError<TestKind>, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
-        _ => panic!("Expected downcast to SimpleError"),
+    match prev.downcast::<(), FakeError, TestKind>() {
+        Some(Downcast::UniError(err)) => assert_eq!(err, err1),
+        _ => panic!("Expected downcast to UniError<TestKind>"),
     }
 }
 
 #[test]
-fn test_convert_uni_to_dyn_and_back() {
+fn test_convert_uni_to_dyn_kind_and_back() {
     let err1 = UniError::from_kind_context(TestKind::Test, "test");
-    let err2: DynError = err1.clone().into();
+    let err2: UniError<dyn UniKind> = err1.clone().into();
 
     // We aren't wrapping, just converting
     let prev = err2.prev_cause();
     assert!(prev.is_none());
 
-    match err2.downcast_ref::<TestKind>() {
-        Some(err) => assert_eq!(err, &err1),
+    match err2.to_typed_kind::<TestKind>() {
+        Some(err) => assert_eq!(err, err1),
         None => panic!("Expected downcast to UniError<TestKind>"),
     }
-    match err2.downcast::<TestKind>() {
+    match err2.into_typed_kind::<TestKind>() {
+        Some(err) => assert_eq!(err, err1),
+        None => panic!("Expected downcast to UniError<TestKind>"),
+    }
+}
+
+#[test]
+fn test_convert_uni_to_dyn_kind_code_and_back() {
+    let err1 = UniError::from_kind_context(TestKind::Test, "test");
+    let err2: UniError<dyn UniKindCode<Code = i32>> = err1.clone().into();
+
+    // We aren't wrapping, just converting
+    let prev = err2.prev_cause();
+    assert!(prev.is_none());
+
+    match err2.to_typed_kind::<TestKind>() {
+        Some(err) => assert_eq!(err, err1),
+        None => panic!("Expected downcast to UniError<TestKind>"),
+    }
+    match err2.into_typed_kind::<TestKind>() {
         Some(err) => assert_eq!(err, err1),
         None => panic!("Expected downcast to UniError<TestKind>"),
     }
@@ -65,8 +84,8 @@ fn test_wrap_boxed_error_to_uni_and_back() {
     assert!(matches!(prev, Cause::StdError(_)));
     assert!(prev.next().is_none());
     assert_eq!(prev.type_name(), "dyn core::error::Error");
-    match prev.downcast_ref::<(), FakeError>() {
-        Some(DowncastRef::Error(err)) => assert_eq!(err, &FakeError),
+    match prev.downcast::<(), FakeError, ()>() {
+        Some(Downcast::ErrorRef(err)) => assert_eq!(err, &FakeError),
         _ => panic!("Expected downcast to FakeError"),
     }
 }
@@ -80,9 +99,9 @@ fn test_wrap_error_to_uni() {
     assert!(matches!(prev, Cause::UniStdError(_)));
     assert!(prev.next().is_none());
     assert_eq!(prev.type_name(), "uni_error::cause::FakeError");
-    match prev.downcast_ref::<(), FakeError>() {
-        Some(DowncastRef::Error(err)) => assert_eq!(err, &FakeError),
-        _ => panic!("Expected downcast to UniError<TestKind>"),
+    match prev.downcast::<(), FakeError, ()>() {
+        Some(Downcast::ErrorRef(err)) => assert_eq!(err, &FakeError),
+        _ => panic!("Expected downcast to FakeError"),
     }
 }
 
@@ -95,9 +114,9 @@ fn test_wrap_display_to_uni() {
     assert!(matches!(prev, Cause::UniDisplay(_)));
     assert!(prev.next().is_none());
     assert_eq!(prev.type_name(), "&str");
-    match prev.downcast_ref::<&str, FakeError>() {
-        Some(DowncastRef::Display(err)) => assert_eq!(err, &err1),
-        _ => panic!("Expected downcast to UniError<TestKind>"),
+    match prev.downcast::<&str, FakeError, ()>() {
+        Some(Downcast::DisplayRef(err)) => assert_eq!(err, &err1),
+        _ => panic!("Expected downcast to &str"),
     }
 }
 
@@ -117,15 +136,18 @@ fn test_uni_to_error_and_back() {
 }
 
 #[test]
-fn test_dyn_to_error_and_back() {
-    let err1: DynError = UniError::from_kind_context(TestKind::Test, "test").into();
-    // TODO: Clone not yet supported for DynError
-    // let err2: DynError = UniError::from_kind_context(TestKind::Test, "test").into();
+fn test_dyn_kind_to_error_and_back() {
+    let err1: UniError<dyn UniKind> = UniError::from_kind_context(TestKind::Test, "test").into();
+    //let err2: UniError<dyn UniKind> = UniError::from_kind_context(TestKind::Test, "test").into();
     let err3: Box<dyn std::error::Error + Send + Sync> = err1.into();
 
-    match err3.downcast::<StdErrorDynWrapper>().ok().map(|err| *err) {
+    match err3
+        .downcast::<StdErrorWrapper<dyn UniKind>>()
+        .ok()
+        .map(|err| *err)
+    {
         Some(_err) => {
-            // TODO: Need DynError wrapper to implement PartialEq
+            // TODO: Need to fix PartialEq
             //assert_eq!(err.0, err2);
         }
         None => panic!("Expected downcast to UniError<TestKind>"),

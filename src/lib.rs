@@ -1,4 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
+
+//! A simple, universal error type for Rust
 
 extern crate alloc;
 

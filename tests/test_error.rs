@@ -1,6 +1,4 @@
-use uni_error::{
-    Cause, DynError, ErrorContext as _, SimpleError, UniError, UniErrorOps as _, UniKind as _,
-};
+use uni_error::{Cause, ErrorContext as _, SimpleError, UniError, UniErrorOps as _, UniKind};
 
 use crate::common::{TestError, TestKind};
 
@@ -18,9 +16,9 @@ fn test_kind() {
 }
 
 #[test]
-fn test_dynerror() {
+fn test_dyn_kind_error() {
     let err = UniError::from_kind(TestKind::NotATest);
-    let error: DynError = err.clone().into();
+    let error: UniError<dyn UniKind> = err.clone().into();
 
     assert_eq!(
         error.type_name(),
@@ -30,15 +28,15 @@ fn test_dynerror() {
     assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
     assert_eq!(error.kind_code(), 123);
 
-    match error.downcast_ref::<TestKind>() {
-        Some(err_ref) => assert_eq!(err_ref, &err),
+    match error.to_typed_kind::<TestKind>() {
+        Some(err2) => assert_eq!(err2, err),
         None => panic!("Expected downcast to TestKind"),
     }
 }
 
 #[test]
 fn test_dyn_kind_code() {
-    let error = UniError::from_kind(TestKind::NotATest).erase_kind_code();
+    let error = UniError::from_kind(TestKind::NotATest).into_dyn_kind_code();
     assert_eq!(error.kind_value(), "NotATest");
     assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
     assert_eq!(error.kind_code(), 123);
@@ -50,12 +48,12 @@ fn test_dyn_kind_code() {
         None => panic!("Expected downcast to TestKind"),
     }
 
-    assert!(error.into_typed::<TestKind>().is_some());
+    assert!(error.into_typed_kind::<TestKind>().is_some());
 }
 
 #[test]
 fn test_dyn_kind_codes() {
-    let error = UniError::from_kind(TestKind::NotATest).erase_kind_codes();
+    let error = UniError::from_kind(TestKind::NotATest).into_dyn_kind_codes();
     assert_eq!(error.kind_value(), "NotATest");
     assert_eq!(error.kind_context_str(), Some("This is not a test!".into()));
     assert_eq!(error.kind_code(), 123);
@@ -75,7 +73,7 @@ fn test_dyn_kind_codes() {
 fn test_root_cause() {
     let error = TestError::new("test".to_string(), None);
     let error: UniError<TestKind> = error.into();
-    let error: DynError = error.into();
+    let error: UniError<dyn UniKind> = error.into();
     let root_cause = error.root_cause();
 
     assert!(matches!(root_cause, Some(Cause::UniStdError(_))));

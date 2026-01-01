@@ -2,9 +2,8 @@ use alloc::{borrow::Cow, boxed::Box};
 use core::{error::Error, fmt::Display};
 
 use crate::{
-    CauseInner, SimpleError,
-    cause::{UniDisplay, UniStdError},
-    error::{DynError, UniError, UniKind, UniResult},
+    cause::{CauseInner, UniDisplay, UniStdError},
+    error::{UniError, UniKind, UniKindCode, UniKindCodes, UniResult},
 };
 
 // *** From implementations ***
@@ -15,19 +14,23 @@ impl<K: UniKind + Default, E: UniStdError> From<E> for UniError<K> {
     }
 }
 
-impl<E: UniStdError> From<E> for DynError {
-    fn from(err: E) -> Self {
-        DynError::new(SimpleError::new(
-            (),
-            None,
-            Some(CauseInner::from_error(err)),
-        ))
+impl<K: UniKind> From<UniError<K>> for UniError<dyn UniKind> {
+    fn from(err: UniError<K>) -> Self {
+        err.into_dyn_kind()
     }
 }
 
-impl<K: UniKind> From<UniError<K>> for DynError {
+impl<K: UniKindCode> From<UniError<K>> for UniError<dyn UniKindCode<Code = K::Code>> {
     fn from(err: UniError<K>) -> Self {
-        DynError::new(err)
+        err.into_dyn_kind_code()
+    }
+}
+
+impl<K: UniKindCodes> From<UniError<K>>
+    for UniError<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>>
+{
+    fn from(err: UniError<K>) -> Self {
+        err.into_dyn_kind_codes()
     }
 }
 
@@ -135,47 +138,23 @@ impl<K: crate::error::UniKindCodes<Code2 = http::StatusCode>> axum::response::In
 /// converting a [`UniError`] to a `Box<dyn Error + Send + Sync>` (and back via
 /// downcasting).
 #[derive(Debug)]
-pub struct StdErrorWrapper<K>(pub UniError<K>);
+pub struct StdErrorWrapper<K: ?Sized>(pub UniError<K>);
 
-impl<K: UniKind> Display for StdErrorWrapper<K> {
+impl<K: UniKind + ?Sized> Display for StdErrorWrapper<K> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         Display::fmt(&self.0, f)
     }
 }
 
-impl<K: UniKind> Error for StdErrorWrapper<K> {
+impl<K: UniKind + ?Sized> Error for StdErrorWrapper<K> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.0.source()
     }
 }
 
-impl<K: UniKind> From<UniError<K>> for Box<dyn Error + Send + Sync> {
+impl<K: UniKind + ?Sized> From<UniError<K>> for Box<dyn Error + Send + Sync> {
     fn from(err: UniError<K>) -> Self {
         Box::new(StdErrorWrapper(err))
-    }
-}
-
-/// A wrapper for a [`DynError`] that implements the [`Error`] trait. Useful for
-/// converting a [`DynError`] to a `Box<dyn Error + Send + Sync>` (and back via
-/// downcasting).
-#[derive(Debug)]
-pub struct StdErrorDynWrapper(pub DynError);
-
-impl Display for StdErrorDynWrapper {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        Display::fmt(&**self.0, f)
-    }
-}
-
-impl Error for StdErrorDynWrapper {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.0.source()
-    }
-}
-
-impl From<DynError> for Box<dyn Error + Send + Sync> {
-    fn from(err: DynError) -> Self {
-        Box::new(StdErrorDynWrapper(err))
     }
 }
 
