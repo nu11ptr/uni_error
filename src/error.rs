@@ -278,7 +278,7 @@ impl<K: UniKind + ?Sized> Error for UniErrorInner<K> {
 /// A custom error type that can be used to return an error with a custom error kind.
 #[derive(Debug)]
 pub struct UniError<K: ?Sized> {
-    inner: Box<UniErrorInner<K>>,
+    inner: UniErrorInner<K>,
 }
 
 impl<K: UniKind + Default> UniError<K> {
@@ -316,11 +316,11 @@ impl<K: UniKind> UniError<K> {
         cause: Option<CauseInner>,
     ) -> Self {
         Self {
-            inner: Box::new(UniErrorInner {
+            inner: UniErrorInner {
                 kind: Arc::new(kind),
                 context,
                 cause: cause.map(Arc::new),
-            }),
+            },
         }
     }
 
@@ -355,7 +355,7 @@ impl<K: UniKind> UniError<K> {
     /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKind` trait object.
     pub fn into_dyn_kind(self) -> UniError<dyn UniKind> {
         UniError {
-            inner: Box::new(self.inner.into_dyn_kind()),
+            inner: self.inner.into_dyn_kind(),
         }
     }
 
@@ -373,16 +373,16 @@ impl UniError<dyn UniKind> {
 
     /// Converts the [`UniError`] to a [`UniError<K>`] if the kind is a [`UniKind`].
     pub fn into_typed_kind<K: UniKind>(self) -> Option<UniError<K>> {
-        self.inner.into_typed_kind::<K>().map(|inner| UniError {
-            inner: Box::new(inner),
-        })
+        self.inner
+            .into_typed_kind::<K>()
+            .map(|inner| UniError { inner })
     }
 
     /// Converts the [`UniError`] to a [`UniError<K>`] if the kind is a [`UniKind`].
     pub fn to_typed_kind<K: UniKind>(&self) -> Option<UniError<K>> {
-        self.inner.to_typed_kind::<K>().map(|inner| UniError {
-            inner: Box::new(inner),
-        })
+        self.inner
+            .to_typed_kind::<K>()
+            .map(|inner| UniError { inner })
     }
 
     /// Returns the concrete type name of the error.
@@ -402,16 +402,16 @@ impl<C: 'static> UniError<dyn UniKindCode<Code = C>> {
 
     /// Converts the [`UniError`] to a [`UniError<K>`] if the kind is a `UniKindCode<Code = C>`.
     pub fn into_typed_kind<K: UniKindCode<Code = C>>(self) -> Option<UniError<K>> {
-        self.inner.into_typed_kind::<K>().map(|inner| UniError {
-            inner: Box::new(inner),
-        })
+        self.inner
+            .into_typed_kind::<K>()
+            .map(|inner| UniError { inner })
     }
 
     /// Converts the [`UniError`] to a [`UniError<K>`] if the kind is a `UniKindCode<Code = C>`.
     pub fn to_typed_kind<K: UniKindCode<Code = C>>(&self) -> Option<UniError<K>> {
-        self.inner.to_typed_kind::<K>().map(|inner| UniError {
-            inner: Box::new(inner),
-        })
+        self.inner
+            .to_typed_kind::<K>()
+            .map(|inner| UniError { inner })
     }
 
     /// Returns the concrete type name of the error.
@@ -431,16 +431,16 @@ impl<C: 'static, C2: 'static> UniError<dyn UniKindCodes<Code = C, Code2 = C2>> {
 
     /// Converts the [`UniError`] to a [`UniError<K>`] if the kind is a `UniKindCodes<Code = C, Code2 = C2>`.
     pub fn into_typed<K: UniKindCodes<Code = C, Code2 = C2>>(self) -> Option<UniError<K>> {
-        self.inner.into_typed_kind::<K>().map(|inner| UniError {
-            inner: Box::new(inner),
-        })
+        self.inner
+            .into_typed_kind::<K>()
+            .map(|inner| UniError { inner })
     }
 
     /// Converts the [`UniError`] to a [`UniError<K>`] if the kind is a `UniKindCodes<Code = C, Code2 = C2>`.
     pub fn to_typed_kind<K: UniKindCodes<Code = C, Code2 = C2>>(&self) -> Option<UniError<K>> {
-        self.inner.to_typed_kind::<K>().map(|inner| UniError {
-            inner: Box::new(inner),
-        })
+        self.inner
+            .to_typed_kind::<K>()
+            .map(|inner| UniError { inner })
     }
 
     /// Returns the concrete type name of the error.
@@ -511,7 +511,7 @@ impl<K: UniKindCode> UniError<K> {
     /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKindCode` trait object.
     pub fn into_dyn_kind_code(self) -> UniError<dyn UniKindCode<Code = K::Code>> {
         UniError {
-            inner: Box::new(self.inner.into_dyn_kind_code()),
+            inner: self.inner.into_dyn_kind_code(),
         }
     }
 }
@@ -529,7 +529,7 @@ impl<K: UniKindCodes> UniError<K> {
         self,
     ) -> UniError<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>> {
         UniError {
-            inner: Box::new(self.inner.into_dyn_kind_codes()),
+            inner: self.inner.into_dyn_kind_codes(),
         }
     }
 }
@@ -558,11 +558,11 @@ impl<K: UniKind + ?Sized> Display for UniError<K> {
 impl<K: UniKind + ?Sized> Clone for UniError<K> {
     fn clone(&self) -> Self {
         Self {
-            inner: Box::new(UniErrorInner {
+            inner: UniErrorInner {
                 kind: self.inner.kind.clone(),
                 context: self.inner.context.clone(),
                 cause: self.inner.cause.clone(),
-            }),
+            },
         }
     }
 }
