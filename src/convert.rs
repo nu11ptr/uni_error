@@ -3,7 +3,7 @@ use core::{error::Error, fmt::Display};
 
 use crate::{
     cause::{CauseInner, UniDisplay, UniStdError},
-    error::{UniError, UniKind, UniKindCode, UniKindCodes, UniResult},
+    error::{SimpleError, UniError, UniKind, UniKindCode, UniKindCodes, UniResult},
 };
 
 // *** From implementations ***
@@ -11,6 +11,12 @@ use crate::{
 impl<K: UniKind + Default, E: UniStdError> From<E> for UniError<K> {
     fn from(err: E) -> Self {
         ErrorContext::wrap(err)
+    }
+}
+
+impl<E: UniStdError> From<E> for UniError<dyn UniKind> {
+    fn from(err: E) -> Self {
+        SimpleError::from(err).into()
     }
 }
 
