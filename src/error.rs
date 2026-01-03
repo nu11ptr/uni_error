@@ -5,6 +5,8 @@ use core::{
     fmt::{Debug, Display},
     ops::Deref,
 };
+#[cfg(all(feature = "backtrace", feature = "std"))]
+use std::backtrace::Backtrace;
 
 use crate::cause::{Cause, CauseInner, Chain};
 
@@ -129,6 +131,8 @@ pub(crate) struct UniErrorInner<K: ?Sized> {
     kind: Arc<K>,
     context: Option<Cow<'static, str>>,
     cause: Option<Arc<CauseInner>>,
+    #[cfg(all(feature = "backtrace", feature = "std"))]
+    backtrace: Arc<Backtrace>,
 }
 
 impl UniErrorInner<dyn UniKind> {
@@ -139,6 +143,8 @@ impl UniErrorInner<dyn UniKind> {
             kind,
             context: self.context,
             cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
         })
     }
 
@@ -150,6 +156,8 @@ impl UniErrorInner<dyn UniKind> {
             kind,
             context: self.context.clone(),
             cause: self.cause.clone(),
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace.clone(),
         })
     }
 }
@@ -161,6 +169,8 @@ impl<C: 'static> UniErrorInner<dyn UniKindCode<Code = C>> {
             kind,
             context: self.context,
             cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
         })
     }
 
@@ -172,6 +182,8 @@ impl<C: 'static> UniErrorInner<dyn UniKindCode<Code = C>> {
             kind,
             context: self.context.clone(),
             cause: self.cause.clone(),
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace.clone(),
         })
     }
 }
@@ -183,6 +195,8 @@ impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C
             kind,
             context: self.context,
             cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
         })
     }
 
@@ -194,6 +208,8 @@ impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C
             kind,
             context: self.context.clone(),
             cause: self.cause.clone(),
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace.clone(),
         })
     }
 }
@@ -218,6 +234,8 @@ impl<K: UniKind> UniErrorInner<K> {
             kind: Arc::new(kind),
             context,
             cause: cause.map(Arc::new),
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: Arc::new(Backtrace::capture()),
         }
     }
 
@@ -226,6 +244,8 @@ impl<K: UniKind> UniErrorInner<K> {
             kind: self.kind as Arc<dyn UniKind>,
             context: self.context,
             cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
         }
     }
 }
@@ -236,6 +256,8 @@ impl<K: UniKindCode> UniErrorInner<K> {
             kind: self.kind as Arc<dyn UniKindCode<Code = K::Code>>,
             context: self.context,
             cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
         }
     }
 }
@@ -248,6 +270,8 @@ impl<K: UniKindCodes> UniErrorInner<K> {
             kind: self.kind as Arc<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>>,
             context: self.context,
             cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
         }
     }
 }
@@ -302,6 +326,8 @@ impl<K: UniKind + ?Sized> Clone for UniErrorInner<K> {
             kind: self.kind.clone(),
             context: self.context.clone(),
             cause: self.cause.clone(),
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace.clone(),
         }
     }
 }
@@ -493,6 +519,12 @@ impl<C: 'static, C2: 'static> UniError<dyn UniKindCodes<Code = C, Code2 = C2>> {
 }
 
 impl<K: UniKind + ?Sized> UniError<K> {
+    /// Returns a reference to the backtrace
+    #[cfg(all(feature = "backtrace", feature = "std"))]
+    pub fn backtrace(&self) -> &Backtrace {
+        &self.inner.backtrace
+    }
+
     /// Returns a reference to the custom kind.
     pub fn kind_ref(&self) -> &K {
         &self.inner.kind

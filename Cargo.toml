@@ -13,6 +13,7 @@ edition = "2024"
 
 [features]
 default = ["std"]
+backtrace = ["std"]
 std = []
 
 # Axum specific IntoResponse implementation. Enable one or the other, not both.
@@ -43,4 +44,4 @@ default-features = false
 optional = true
 
 [package.metadata.docs.rs]
-features = ["std"]
+features = ["backtrace", "std"]
