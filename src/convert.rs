@@ -2,8 +2,10 @@ use alloc::{borrow::Cow, boxed::Box};
 use core::{error::Error, fmt::Display};
 
 use crate::{
+    SimpleError, UniResult,
     cause::{CauseInner, UniDisplay, UniStdError},
-    error::{SimpleError, UniError, UniKind, UniKindCode, UniKindCodes, UniResult},
+    error::UniError,
+    kind::{UniKind, UniKindCode, UniKindCodes},
 };
 
 // *** From implementations ***

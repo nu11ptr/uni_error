@@ -7,7 +7,8 @@ use core::{
     fmt::{Debug, Display},
 };
 
-use crate::error::{UniError, UniKind, UniKindCode, UniKindCodes};
+use crate::error::UniError;
+use crate::kind::{UniKind, UniKindCode, UniKindCodes};
 
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard [`Error`] trait with [`Any`] to allow downcasting.
