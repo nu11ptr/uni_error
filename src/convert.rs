@@ -220,7 +220,7 @@ impl<K: UniKind, E: UniStdError> ErrorContext<K> for E {
 // *** ResultContext ***
 
 /// A trait for wrapping an existing result error with a additional context.
-pub trait ResultContext<K, T, E> {
+pub trait ResultContext<K, T> {
     /// Wraps the existing result error with the provided kind.
     fn kind(self, kind: K) -> UniResult<T, K>;
 
@@ -273,7 +273,7 @@ pub trait ResultContext<K, T, E> {
         K: Default;
 }
 
-impl<K: UniKind, T, E: UniStdError> ResultContext<K, T, E> for Result<T, E> {
+impl<K: UniKind, T, E: UniStdError> ResultContext<K, T> for Result<T, E> {
     fn kind(self, kind: K) -> UniResult<T, K> {
         self.map_err(|err| err.kind(kind))
     }
@@ -297,7 +297,7 @@ impl<K: UniKind, T, E: UniStdError> ResultContext<K, T, E> for Result<T, E> {
     }
 }
 
-impl<K: UniKind, T, E> ResultContext<K, T, E> for Option<T> {
+impl<K: UniKind, T> ResultContext<K, T> for Option<T> {
     fn kind(self, kind: K) -> UniResult<T, K> {
         self.ok_or_else(|| UniError::from_kind(kind))
     }
@@ -321,7 +321,7 @@ impl<K: UniKind, T, E> ResultContext<K, T, E> for Option<T> {
     }
 }
 
-impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T, K> for UniResult<T, K> {
+impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, K> {
     fn kind(self, kind: K2) -> UniResult<T, K2> {
         self.map_err(|err| err.kind(kind))
     }
@@ -405,7 +405,7 @@ impl<K: UniKind, D: UniDisplay> ErrorContextDisplay<K> for D {
 // *** ResultContextDisplay ***
 
 /// A trait for wrapping an existing result error with a additional context (for [`Display`] types).
-pub trait ResultContextDisplay<K, T, D> {
+pub trait ResultContextDisplay<K, T> {
     /// Wraps the existing result error with the provided kind (for [`Display`] types).
     fn kind_disp(self, kind: K) -> UniResult<T, K>;
 
@@ -458,7 +458,7 @@ pub trait ResultContextDisplay<K, T, D> {
         K: Default;
 }
 
-impl<K: UniKind, T, D: UniDisplay> ResultContextDisplay<K, T, D> for Result<T, D> {
+impl<K: UniKind, T, D: UniDisplay> ResultContextDisplay<K, T> for Result<T, D> {
     fn context_disp(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>
     where
         K: Default,
