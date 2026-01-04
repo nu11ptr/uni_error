@@ -345,6 +345,80 @@ impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, K> {
     }
 }
 
+impl<K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKind> {
+    fn kind(self, kind: K2) -> UniResult<T, K2> {
+        self.map_err(|err| err.kind(kind))
+    }
+
+    fn context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2>
+    where
+        K2: Default,
+    {
+        self.map_err(|err| err.context(context))
+    }
+
+    fn kind_context(self, kind: K2, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2> {
+        self.map_err(|err| err.kind_context(kind, context))
+    }
+
+    fn wrap(self) -> UniResult<T, K2>
+    where
+        K2: Default,
+    {
+        self.map_err(|err| err.wrap())
+    }
+}
+
+impl<C: 'static, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKindCode<Code = C>> {
+    fn kind(self, kind: K2) -> UniResult<T, K2> {
+        self.map_err(|err| err.kind(kind))
+    }
+
+    fn context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2>
+    where
+        K2: Default,
+    {
+        self.map_err(|err| err.context(context))
+    }
+
+    fn kind_context(self, kind: K2, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2> {
+        self.map_err(|err| err.kind_context(kind, context))
+    }
+
+    fn wrap(self) -> UniResult<T, K2>
+    where
+        K2: Default,
+    {
+        self.map_err(|err| err.wrap())
+    }
+}
+
+impl<C: 'static, C2: 'static, K2: UniKind, T> ResultContext<K2, T>
+    for UniResult<T, dyn UniKindCodes<Code = C, Code2 = C2>>
+{
+    fn kind(self, kind: K2) -> UniResult<T, K2> {
+        self.map_err(|err| err.kind(kind))
+    }
+
+    fn context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2>
+    where
+        K2: Default,
+    {
+        self.map_err(|err| err.context(context))
+    }
+
+    fn kind_context(self, kind: K2, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2> {
+        self.map_err(|err| err.kind_context(kind, context))
+    }
+
+    fn wrap(self) -> UniResult<T, K2>
+    where
+        K2: Default,
+    {
+        self.map_err(|err| err.wrap())
+    }
+}
+
 // *** ErrorContextDisplay ***
 
 /// A trait for wrapping an existing error with a additional context (for [`Display`] types).
