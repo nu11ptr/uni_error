@@ -30,16 +30,17 @@ cargo add uni_error
 ## Features
 
 * Simple/ergonomic API
-* Can wrap any error type that implements `Display` or `Error`
-* Provides error cause chain with metadata
+* Can wrap any type that implements [Display](https://doc.rust-lang.org/stable/std/fmt/trait.Display.html) or [Error](https://doc.rust-lang.org/stable/std/error/trait.Error.html)
+* Provides error cause chain with metadata and downcasting
 * Both type safe and dynamic (string/integer) error kind
-* Dereferences to stdlib `Error` trait
-* Implements `Clone`
-* Optional: Auto convert into [http::StatusCode](https://docs.rs/http/latest/http/status/struct.StatusCode.html), [axum::response::Response](https://docs.rs/http/latest/http/response/struct.Response.html), or [tonic::Status](https://docs.rs/tonic/latest/tonic/struct.Status.html)
+* Dereferences to stdlib [Error](https://doc.rust-lang.org/stable/std/error/trait.Error.html) trait
+* Implements [Clone](https://doc.rust-lang.org/stable/std/clone/trait.Clone.html)
+* Optional [Backtrace](https://doc.rust-lang.org/stable/std/backtrace/) capture
+* Optional: Auto convert into [http::StatusCode](https://docs.rs/http/latest/http/status/struct.StatusCode.html), [axum::response::Response](https://docs.rs/http/latest/http/response/struct.Response.html), or [tonic::Status](https://docs.rs/tonic/latest/tonic/struct.Status.html) for usage in an API
 * No required dependencies
 * No macros
-* No `unsafe`
-* Optionally `no_std` (without loss of functionality)
+* No `unsafe` (forbidden)
+* Optionally `no_std` (only backtrace capability lost)
 
 ## Examples
 
@@ -137,7 +138,7 @@ If the error type implements `std::error::Error`, or is `UniError<T>` --> `UniEr
 result?
 ```
 
-`UniError<T>` --> `UniError<U>`:
+`UniError<T>` --> `UniError<U>` (`U` must implement `Default`):
 
 ```text
 result.wrap()?
