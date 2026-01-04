@@ -8,7 +8,7 @@ use crate::{
 
 // *** From implementations ***
 
-impl<K: UniKind + Default, E: UniStdError> From<E> for UniError<K> {
+impl<K: Default, E: UniStdError> From<E> for UniError<K> {
     fn from(err: E) -> Self {
         ErrorContext::wrap(err)
     }
@@ -185,7 +185,7 @@ pub trait ErrorContext<K> {
         K: Default;
 }
 
-impl<K: UniKind, E: UniStdError> ErrorContext<K> for E {
+impl<K, E: UniStdError> ErrorContext<K> for E {
     fn kind(self, kind: K) -> UniError<K> {
         UniError::new(kind, None, Some(CauseInner::from_error(self)))
     }
@@ -273,7 +273,7 @@ pub trait ResultContext<K, T> {
         K: Default;
 }
 
-impl<K: UniKind, T, E: UniStdError> ResultContext<K, T> for Result<T, E> {
+impl<K, T, E: UniStdError> ResultContext<K, T> for Result<T, E> {
     fn kind(self, kind: K) -> UniResult<T, K> {
         self.map_err(|err| err.kind(kind))
     }
@@ -297,7 +297,7 @@ impl<K: UniKind, T, E: UniStdError> ResultContext<K, T> for Result<T, E> {
     }
 }
 
-impl<K: UniKind, T> ResultContext<K, T> for Option<T> {
+impl<K, T> ResultContext<K, T> for Option<T> {
     fn kind(self, kind: K) -> UniResult<T, K> {
         self.ok_or_else(|| UniError::from_kind(kind))
     }
@@ -463,7 +463,7 @@ pub trait ErrorContextDisplay<K> {
         K: Default;
 }
 
-impl<K: UniKind, D: UniDisplay> ErrorContextDisplay<K> for D {
+impl<K, D: UniDisplay> ErrorContextDisplay<K> for D {
     fn kind_disp(self, kind: K) -> UniError<K> {
         UniError::new(kind, None, Some(CauseInner::from_display(self)))
     }
@@ -555,7 +555,7 @@ pub trait ResultContextDisplay<K, T> {
         K: Default;
 }
 
-impl<K: UniKind, T, D: UniDisplay> ResultContextDisplay<K, T> for Result<T, D> {
+impl<K, T, D: UniDisplay> ResultContextDisplay<K, T> for Result<T, D> {
     fn context_disp(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>
     where
         K: Default,
