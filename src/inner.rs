@@ -23,6 +23,100 @@ pub(crate) struct UniErrorInner<K: ?Sized> {
     backtrace: Arc<Backtrace>,
 }
 
+impl<K> UniErrorInner<K> {
+    pub(crate) fn new(
+        kind: K,
+        context: Option<Cow<'static, str>>,
+        cause: Option<CauseInner>,
+    ) -> Self {
+        Self {
+            kind: Arc::new(kind),
+            context,
+            cause: cause.map(Arc::new),
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: Arc::new(Backtrace::capture()),
+        }
+    }
+}
+
+impl<K: ?Sized + 'static> UniErrorInner<K> {
+    #[cfg(all(feature = "backtrace", feature = "std"))]
+    pub fn backtrace(&self) -> &Backtrace {
+        &self.backtrace
+    }
+
+    pub fn kind_ref(&self) -> &K {
+        &self.kind
+    }
+
+    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
+        self.cause.as_ref().map(|inner| Cause::from_inner(inner))
+    }
+
+    pub fn is_simple(&self) -> bool {
+        <UniErrorInner<K> as Any>::type_id(self) == TypeId::of::<UniErrorInner<()>>()
+    }
+
+    pub fn add_context(mut self, context: impl Into<Cow<'static, str>>) -> Self {
+        let context = context.into();
+
+        match self.context {
+            Some(existing) => {
+                self.context = Some(alloc::format!("{context}: {existing}").into());
+            }
+            None => {
+                self.context = Some(context);
+            }
+        }
+
+        self
+    }
+}
+
+impl<K: Clone> UniErrorInner<K> {
+    pub fn kind_clone(&self) -> K {
+        (*self.kind).clone()
+    }
+}
+
+impl<K: UniKind> UniErrorInner<K> {
+    pub fn into_dyn_kind(self) -> UniErrorInner<dyn UniKind> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKind>,
+            context: self.context,
+            cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
+        }
+    }
+}
+
+impl<K: UniKindCode> UniErrorInner<K> {
+    pub fn into_dyn_kind_code(self) -> UniErrorInner<dyn UniKindCode<Code = K::Code>> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKindCode<Code = K::Code>>,
+            context: self.context,
+            cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
+        }
+    }
+}
+
+impl<K: UniKindCodes> UniErrorInner<K> {
+    pub fn into_dyn_kind_codes(
+        self,
+    ) -> UniErrorInner<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>>,
+            context: self.context,
+            cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
+        }
+    }
+}
+
 impl UniErrorInner<dyn UniKind> {
     pub fn into_typed_kind<K: Send + Sync + 'static>(self) -> Option<UniErrorInner<K>> {
         let kind = self.kind as Arc<dyn Any + Send + Sync>;
@@ -122,99 +216,7 @@ impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C
     }
 }
 
-impl<K: ?Sized + 'static> UniErrorInner<K> {
-    #[cfg(all(feature = "backtrace", feature = "std"))]
-    pub fn backtrace(&self) -> &Backtrace {
-        &self.backtrace
-    }
-
-    pub fn kind_ref(&self) -> &K {
-        &self.kind
-    }
-
-    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
-        self.cause.as_ref().map(|inner| Cause::from_inner(inner))
-    }
-
-    pub fn is_simple(&self) -> bool {
-        <UniErrorInner<K> as Any>::type_id(self) == TypeId::of::<UniErrorInner<()>>()
-    }
-
-    pub fn add_context(mut self, context: impl Into<Cow<'static, str>>) -> Self {
-        let context = context.into();
-
-        match self.context {
-            Some(existing) => {
-                self.context = Some(alloc::format!("{context}: {existing}").into());
-            }
-            None => {
-                self.context = Some(context);
-            }
-        }
-
-        self
-    }
-}
-
-impl<K: Clone> UniErrorInner<K> {
-    pub fn kind_clone(&self) -> K {
-        (*self.kind).clone()
-    }
-}
-
-impl<K> UniErrorInner<K> {
-    pub(crate) fn new(
-        kind: K,
-        context: Option<Cow<'static, str>>,
-        cause: Option<CauseInner>,
-    ) -> Self {
-        Self {
-            kind: Arc::new(kind),
-            context,
-            cause: cause.map(Arc::new),
-            #[cfg(all(feature = "backtrace", feature = "std"))]
-            backtrace: Arc::new(Backtrace::capture()),
-        }
-    }
-}
-
-impl<K: UniKind> UniErrorInner<K> {
-    pub fn into_dyn_kind(self) -> UniErrorInner<dyn UniKind> {
-        UniErrorInner {
-            kind: self.kind as Arc<dyn UniKind>,
-            context: self.context,
-            cause: self.cause,
-            #[cfg(all(feature = "backtrace", feature = "std"))]
-            backtrace: self.backtrace,
-        }
-    }
-}
-
-impl<K: UniKindCode> UniErrorInner<K> {
-    pub fn into_dyn_kind_code(self) -> UniErrorInner<dyn UniKindCode<Code = K::Code>> {
-        UniErrorInner {
-            kind: self.kind as Arc<dyn UniKindCode<Code = K::Code>>,
-            context: self.context,
-            cause: self.cause,
-            #[cfg(all(feature = "backtrace", feature = "std"))]
-            backtrace: self.backtrace,
-        }
-    }
-}
-
-impl<K: UniKindCodes> UniErrorInner<K> {
-    pub fn into_dyn_kind_codes(
-        self,
-    ) -> UniErrorInner<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>> {
-        UniErrorInner {
-            kind: self.kind as Arc<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>>,
-            context: self.context,
-            cause: self.cause,
-            #[cfg(all(feature = "backtrace", feature = "std"))]
-            backtrace: self.backtrace,
-        }
-    }
-}
+// *** Display ***
 
 impl<K: UniKind + ?Sized> Display for UniErrorInner<K> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -242,6 +244,8 @@ impl<K: UniKind + ?Sized> Display for UniErrorInner<K> {
     }
 }
 
+// *** PartialEq ***
+
 impl<K: PartialEq + ?Sized + 'static> PartialEq for UniErrorInner<K> {
     fn eq(&self, other: &Self) -> bool {
         // Kind values must be equal at minimum
@@ -259,6 +263,8 @@ impl<K: PartialEq + ?Sized + 'static> PartialEq for UniErrorInner<K> {
     }
 }
 
+// *** Clone ***
+
 // Manually implement as derive requires K: Clone
 impl<K: ?Sized> Clone for UniErrorInner<K> {
     fn clone(&self) -> Self {
@@ -271,6 +277,8 @@ impl<K: ?Sized> Clone for UniErrorInner<K> {
         }
     }
 }
+
+// *** Error ***
 
 impl<K: UniKind + ?Sized> Error for UniErrorInner<K> {
     fn source(&self) -> Option<&(dyn Error + 'static)> {

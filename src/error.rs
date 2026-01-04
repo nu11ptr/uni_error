@@ -20,34 +20,6 @@ pub struct UniError<K: ?Sized> {
     inner: UniErrorInner<K>,
 }
 
-impl<K: Default> UniError<K> {
-    /// Creates a new [`UniError`] with a default kind, the provided context, and no cause.
-    pub fn from_context(context: impl Into<Cow<'static, str>>) -> Self {
-        Self::new(Default::default(), Some(context.into()), None)
-    }
-
-    /// Creates a new [`UniError`] with a default kind and the boxed error as the cause.
-    pub fn from_boxed(error: Box<dyn Error + Send + Sync>) -> Self {
-        Self::new(
-            Default::default(),
-            None,
-            Some(CauseInner::from_boxed_error(error)),
-        )
-    }
-
-    /// Creates a new [`UniError`] with a default kind, the provided context and the boxed error as the cause.
-    pub fn from_context_boxed(
-        context: impl Into<Cow<'static, str>>,
-        error: Box<dyn Error + Send + Sync>,
-    ) -> Self {
-        Self::new(
-            Default::default(),
-            Some(context.into()),
-            Some(CauseInner::from_boxed_error(error)),
-        )
-    }
-}
-
 impl<K> UniError<K> {
     pub(crate) fn new(
         kind: K,
@@ -90,6 +62,97 @@ impl<K> UniError<K> {
     /// Returns the concrete type name of the error.
     pub fn type_name(&self) -> &'static str {
         type_name::<Self>()
+    }
+}
+
+impl<K: Default> UniError<K> {
+    /// Creates a new [`UniError`] with a default kind, the provided context, and no cause.
+    pub fn from_context(context: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(Default::default(), Some(context.into()), None)
+    }
+
+    /// Creates a new [`UniError`] with a default kind and the boxed error as the cause.
+    pub fn from_boxed(error: Box<dyn Error + Send + Sync>) -> Self {
+        Self::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_boxed_error(error)),
+        )
+    }
+
+    /// Creates a new [`UniError`] with a default kind, the provided context and the boxed error as the cause.
+    pub fn from_context_boxed(
+        context: impl Into<Cow<'static, str>>,
+        error: Box<dyn Error + Send + Sync>,
+    ) -> Self {
+        Self::new(
+            Default::default(),
+            Some(context.into()),
+            Some(CauseInner::from_boxed_error(error)),
+        )
+    }
+}
+
+impl<K: ?Sized + 'static> UniError<K> {
+    /// Returns a reference to the backtrace
+    #[cfg(all(feature = "backtrace", feature = "std"))]
+    pub fn backtrace(&self) -> &Backtrace {
+        &self.inner.backtrace()
+    }
+
+    /// Returns a reference to the custom kind.
+    pub fn kind_ref(&self) -> &K {
+        self.inner.kind_ref()
+    }
+
+    /// Returns true if the error is a [`SimpleError`].
+    pub fn is_simple(&self) -> bool {
+        self.inner.is_simple()
+    }
+
+    /// Returns a reference to the first entry in the cause chain.
+    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
+        self.inner.prev_cause()
+    }
+
+    /// Returns an iterator over the cause chain.
+    pub fn chain(&self) -> Chain<'_> {
+        Chain::new(self.prev_cause())
+    }
+
+    // TODO: Remove Option and make 'self' a possible candidate?
+    /// Returns the root cause of this error. If `None` is returned then this error is the root cause.
+    pub fn root_cause(&self) -> Option<Cause<'_>> {
+        let mut chain = self.chain();
+        let mut root = chain.next();
+
+        for next in chain {
+            root = Some(next);
+        }
+        root
+    }
+
+    /// Adds the provided context to the existing error.
+    pub fn add_context(self, context: impl Into<Cow<'static, str>>) -> Self {
+        UniError {
+            inner: self.inner.add_context(context),
+        }
+    }
+}
+
+impl<K: Clone> UniError<K> {
+    /// Returns a clone of the custom kind.
+    pub fn kind_clone(&self) -> K {
+        self.inner.kind_clone()
+    }
+
+    /// Calls the provided function with the error and the custom kind, and returns a new error with possibly a different kind.
+    pub fn kind_fn<F, K2>(self, f: F) -> UniError<K2>
+    where
+        F: FnOnce(Self, K) -> UniError<K2>,
+    {
+        let kind = self.kind_clone();
+        f(self, kind)
     }
 }
 
@@ -141,6 +204,63 @@ impl<K: UniKind> UniError<K> {
             None,
             Some(CauseInner::from_uni_error(self)),
         )
+    }
+}
+
+impl<K: UniKind + ?Sized> UniError<K> {
+    /// Returns the code (typically for FFI) for this specific kind
+    pub fn kind_code(&self) -> i32 {
+        self.kind_ref().code(self.prev_cause())
+    }
+
+    /// Returns a 2nd code (typically for FFI) for this specific kind.
+    pub fn kind_code2(&self) -> i32 {
+        self.kind_ref().code2(self.prev_cause())
+    }
+
+    /// The string value of the kind, if any. This is useful for programmatic evaluation
+    /// when the type is boxed in the error chain and the type is not known
+    pub fn kind_value(&self) -> Cow<'static, str> {
+        self.kind_ref().value(self.prev_cause())
+    }
+
+    /// Returns additional context for this specific kind, if any
+    pub fn kind_context_str(&self) -> Option<Cow<'static, str>> {
+        self.kind_ref().context(self.prev_cause())
+    }
+}
+
+impl<K: UniKindCode> UniError<K> {
+    /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKindCode` trait object.
+    pub fn into_dyn_kind_code(self) -> UniError<dyn UniKindCode<Code = K::Code>> {
+        UniError {
+            inner: self.inner.into_dyn_kind_code(),
+        }
+    }
+}
+
+impl<K: UniKindCode + ?Sized> UniError<K> {
+    /// Returns the code (typically for FFI) for this specific kind.
+    pub fn typed_code(&self) -> K::Code {
+        self.kind_ref().typed_code(self.prev_cause())
+    }
+}
+
+impl<K: UniKindCodes> UniError<K> {
+    /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKindCodes` trait object.
+    pub fn into_dyn_kind_codes(
+        self,
+    ) -> UniError<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>> {
+        UniError {
+            inner: self.inner.into_dyn_kind_codes(),
+        }
+    }
+}
+
+impl<K: UniKindCodes + ?Sized> UniError<K> {
+    /// Returns a 2nd code (typically for FFI) for this specific kind.
+    pub fn typed_code2(&self) -> K::Code2 {
+        self.kind_ref().typed_code2(self.prev_cause())
     }
 }
 
@@ -371,131 +491,15 @@ impl<C: 'static, C2: 'static> UniError<dyn UniKindCodes<Code = C, Code2 = C2>> {
     }
 }
 
-impl<K: ?Sized + 'static> UniError<K> {
-    /// Returns a reference to the backtrace
-    #[cfg(all(feature = "backtrace", feature = "std"))]
-    pub fn backtrace(&self) -> &Backtrace {
-        &self.inner.backtrace()
-    }
-
-    /// Returns a reference to the custom kind.
-    pub fn kind_ref(&self) -> &K {
-        self.inner.kind_ref()
-    }
-
-    /// Returns true if the error is a [`SimpleError`].
-    pub fn is_simple(&self) -> bool {
-        self.inner.is_simple()
-    }
-
-    /// Returns a reference to the first entry in the cause chain.
-    pub fn prev_cause<'e>(&'e self) -> Option<Cause<'e>> {
-        self.inner.prev_cause()
-    }
-
-    /// Returns an iterator over the cause chain.
-    pub fn chain(&self) -> Chain<'_> {
-        Chain::new(self.prev_cause())
-    }
-
-    // TODO: Remove Option and make 'self' a possible candidate?
-    /// Returns the root cause of this error. If `None` is returned then this error is the root cause.
-    pub fn root_cause(&self) -> Option<Cause<'_>> {
-        let mut chain = self.chain();
-        let mut root = chain.next();
-
-        for next in chain {
-            root = Some(next);
-        }
-        root
-    }
-
-    /// Adds the provided context to the existing error.
-    pub fn add_context(self, context: impl Into<Cow<'static, str>>) -> Self {
-        UniError {
-            inner: self.inner.add_context(context),
-        }
-    }
-}
-
-impl<K: UniKind + ?Sized> UniError<K> {
-    /// Returns the code (typically for FFI) for this specific kind
-    pub fn kind_code(&self) -> i32 {
-        self.kind_ref().code(self.prev_cause())
-    }
-
-    /// Returns a 2nd code (typically for FFI) for this specific kind.
-    pub fn kind_code2(&self) -> i32 {
-        self.kind_ref().code2(self.prev_cause())
-    }
-
-    /// The string value of the kind, if any. This is useful for programmatic evaluation
-    /// when the type is boxed in the error chain and the type is not known
-    pub fn kind_value(&self) -> Cow<'static, str> {
-        self.kind_ref().value(self.prev_cause())
-    }
-
-    /// Returns additional context for this specific kind, if any
-    pub fn kind_context_str(&self) -> Option<Cow<'static, str>> {
-        self.kind_ref().context(self.prev_cause())
-    }
-}
-
-impl<K: UniKindCode> UniError<K> {
-    /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKindCode` trait object.
-    pub fn into_dyn_kind_code(self) -> UniError<dyn UniKindCode<Code = K::Code>> {
-        UniError {
-            inner: self.inner.into_dyn_kind_code(),
-        }
-    }
-}
-
-impl<K: UniKindCode + ?Sized> UniError<K> {
-    /// Returns the code (typically for FFI) for this specific kind.
-    pub fn typed_code(&self) -> K::Code {
-        self.kind_ref().typed_code(self.prev_cause())
-    }
-}
-
-impl<K: UniKindCodes> UniError<K> {
-    /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKindCodes` trait object.
-    pub fn into_dyn_kind_codes(
-        self,
-    ) -> UniError<dyn UniKindCodes<Code = K::Code, Code2 = K::Code2>> {
-        UniError {
-            inner: self.inner.into_dyn_kind_codes(),
-        }
-    }
-}
-
-impl<K: UniKindCodes + ?Sized> UniError<K> {
-    /// Returns a 2nd code (typically for FFI) for this specific kind.
-    pub fn typed_code2(&self) -> K::Code2 {
-        self.kind_ref().typed_code2(self.prev_cause())
-    }
-}
-
-impl<K: Clone> UniError<K> {
-    /// Returns a clone of the custom kind.
-    pub fn kind_clone(&self) -> K {
-        self.inner.kind_clone()
-    }
-
-    /// Calls the provided function with the error and the custom kind, and returns a new error with possibly a different kind.
-    pub fn kind_fn<F, K2>(self, f: F) -> UniError<K2>
-    where
-        F: FnOnce(Self, K) -> UniError<K2>,
-    {
-        let kind = self.kind_clone();
-        f(self, kind)
-    }
-}
+// *** Display ***
 
 impl<K: UniKind + ?Sized> Display for UniError<K> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         <UniErrorInner<K> as Display>::fmt(&self.inner, f)
     }
 }
+
+// *** Clone ***
 
 // Manually implement as derive requires K: Clone
 impl<K: ?Sized> Clone for UniError<K> {
@@ -506,11 +510,15 @@ impl<K: ?Sized> Clone for UniError<K> {
     }
 }
 
+// *** PartialEq ***
+
 impl<K: PartialEq + ?Sized + 'static> PartialEq for UniError<K> {
     fn eq(&self, other: &Self) -> bool {
         self.inner.eq(&other.inner)
     }
 }
+
+// *** Deref ***
 
 impl<K: UniKind + ?Sized> Deref for UniError<K> {
     type Target = dyn Error + Sync + Send + 'static;
@@ -519,6 +527,8 @@ impl<K: UniKind + ?Sized> Deref for UniError<K> {
         &self.inner
     }
 }
+
+// *** AsRef ***
 
 impl<K: UniKind + ?Sized> AsRef<dyn Error + Sync + Send> for UniError<K> {
     fn as_ref(&self) -> &(dyn Error + Sync + Send + 'static) {
