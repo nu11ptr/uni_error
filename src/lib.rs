@@ -18,7 +18,9 @@ mod kind;
 mod readme_tests {}
 
 pub use cause::Cause;
-pub use convert::{ErrorContext, ErrorContextDisplay, ResultContext, ResultContextDisplay};
+pub use convert::{
+    ErrorContext, ErrorContextDisplay, ResultContext, ResultContextDisplay, ResultContextFn,
+};
 pub use error::*;
 pub use kind::*;
 
