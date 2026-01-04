@@ -186,6 +186,16 @@ impl<C: 'static> UniErrorInner<dyn UniKindCode<Code = C>> {
             backtrace: self.backtrace.clone(),
         })
     }
+
+    fn into_dyn_kind(self) -> UniErrorInner<dyn UniKind> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKind>,
+            context: self.context,
+            cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
+        }
+    }
 }
 
 impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C2>> {
@@ -212,6 +222,16 @@ impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C
             backtrace: self.backtrace.clone(),
         })
     }
+
+    fn into_dyn_kind(self) -> UniErrorInner<dyn UniKind> {
+        UniErrorInner {
+            kind: self.kind as Arc<dyn UniKind>,
+            context: self.context,
+            cause: self.cause,
+            #[cfg(all(feature = "backtrace", feature = "std"))]
+            backtrace: self.backtrace,
+        }
+    }
 }
 
 impl<K: UniKind + ?Sized> UniErrorInner<K> {
@@ -221,6 +241,21 @@ impl<K: UniKind + ?Sized> UniErrorInner<K> {
 
     fn is_simple(&self) -> bool {
         <UniErrorInner<K> as Any>::type_id(self) == TypeId::of::<UniErrorInner<()>>()
+    }
+
+    fn add_context(mut self, context: impl Into<Cow<'static, str>>) -> Self {
+        let context = context.into();
+
+        match self.context {
+            Some(existing) => {
+                self.context = Some(alloc::format!("{context}: {existing}").into());
+            }
+            None => {
+                self.context = Some(context);
+            }
+        }
+
+        self
     }
 }
 
@@ -429,6 +464,48 @@ impl<K: UniKind> UniError<K> {
     pub fn type_name(&self) -> &'static str {
         type_name::<Self>()
     }
+
+    /// Wraps the existing error with the provided kind.
+    pub fn kind<K2: UniKind>(self, kind: K2) -> UniError<K2> {
+        UniError::new(kind, None, Some(CauseInner::from_uni_error(self)))
+    }
+
+    /// Wraps the existing error with the provided context.
+    pub fn context<K2: UniKind>(self, context: impl Into<Cow<'static, str>>) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            Some(context.into()),
+            Some(CauseInner::from_uni_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with the provided kind and context.
+    pub fn kind_context<K2: UniKind>(
+        self,
+        kind: K2,
+        context: impl Into<Cow<'static, str>>,
+    ) -> UniError<K2> {
+        UniError::new(
+            kind,
+            Some(context.into()),
+            Some(CauseInner::from_uni_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with no additional context.
+    pub fn wrap<K2: UniKind>(self) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_uni_error(self)),
+        )
+    }
 }
 
 impl UniError<dyn UniKind> {
@@ -457,6 +534,48 @@ impl UniError<dyn UniKind> {
         let end = ">";
         let kind_type = self.kind_ref().type_name();
         alloc::format!("{start}{kind_type}{end}")
+    }
+
+    /// Wraps the existing error with the provided kind.
+    pub fn kind<K2: UniKind>(self, kind: K2) -> UniError<K2> {
+        UniError::new(kind, None, Some(CauseInner::from_dyn_error(self)))
+    }
+
+    /// Wraps the existing error with the provided context.
+    pub fn context<K2: UniKind>(self, context: impl Into<Cow<'static, str>>) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            Some(context.into()),
+            Some(CauseInner::from_dyn_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with the provided kind and context.
+    pub fn kind_context<K2: UniKind>(
+        self,
+        kind: K2,
+        context: impl Into<Cow<'static, str>>,
+    ) -> UniError<K2> {
+        UniError::new(
+            kind,
+            Some(context.into()),
+            Some(CauseInner::from_dyn_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with no additional context.
+    pub fn wrap<K2: UniKind>(self) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_dyn_error(self)),
+        )
     }
 }
 
@@ -487,6 +606,55 @@ impl<C: 'static> UniError<dyn UniKindCode<Code = C>> {
         let kind_type = self.kind_ref().type_name();
         alloc::format!("{start}{kind_type}{end}")
     }
+
+    /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKind` trait object.
+    pub fn into_dyn_kind(self) -> UniError<dyn UniKind> {
+        UniError {
+            inner: self.inner.into_dyn_kind(),
+        }
+    }
+
+    /// Wraps the existing error with the provided kind.
+    pub fn kind<K2: UniKind>(self, kind: K2) -> UniError<K2> {
+        UniError::new(kind, None, Some(CauseInner::from_dyn_code_error(self)))
+    }
+
+    /// Wraps the existing error with the provided context.
+    pub fn context<K2: UniKind>(self, context: impl Into<Cow<'static, str>>) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            Some(context.into()),
+            Some(CauseInner::from_dyn_code_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with the provided kind and context.
+    pub fn kind_context<K2: UniKind>(
+        self,
+        kind: K2,
+        context: impl Into<Cow<'static, str>>,
+    ) -> UniError<K2> {
+        UniError::new(
+            kind,
+            Some(context.into()),
+            Some(CauseInner::from_dyn_code_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with no additional context.
+    pub fn wrap<K2: UniKind>(self) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_dyn_code_error(self)),
+        )
+    }
 }
 
 impl<C: 'static, C2: 'static> UniError<dyn UniKindCodes<Code = C, Code2 = C2>> {
@@ -515,6 +683,55 @@ impl<C: 'static, C2: 'static> UniError<dyn UniKindCodes<Code = C, Code2 = C2>> {
         let end = ">";
         let kind_type = self.kind_ref().type_name();
         alloc::format!("{start}{kind_type}{end}")
+    }
+
+    /// Erases the custom kind and returns a [`UniError`] with a `dyn UniKind` trait object.
+    pub fn into_dyn_kind(self) -> UniError<dyn UniKind> {
+        UniError {
+            inner: self.inner.into_dyn_kind(),
+        }
+    }
+
+    /// Wraps the existing error with the provided kind.
+    pub fn kind<K2: UniKind>(self, kind: K2) -> UniError<K2> {
+        UniError::new(kind, None, Some(CauseInner::from_dyn_codes_error(self)))
+    }
+
+    /// Wraps the existing error with the provided context.
+    pub fn context<K2: UniKind>(self, context: impl Into<Cow<'static, str>>) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            Some(context.into()),
+            Some(CauseInner::from_dyn_codes_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with the provided kind and context.
+    pub fn kind_context<K2: UniKind>(
+        self,
+        kind: K2,
+        context: impl Into<Cow<'static, str>>,
+    ) -> UniError<K2> {
+        UniError::new(
+            kind,
+            Some(context.into()),
+            Some(CauseInner::from_dyn_codes_error(self)),
+        )
+    }
+
+    /// Wraps the existing error with no additional context.
+    pub fn wrap<K2: UniKind>(self) -> UniError<K2>
+    where
+        K2: Default,
+    {
+        UniError::new(
+            Default::default(),
+            None,
+            Some(CauseInner::from_dyn_codes_error(self)),
+        )
     }
 }
 
@@ -577,6 +794,23 @@ impl<K: UniKind + ?Sized> UniError<K> {
         }
         root
     }
+
+    /// Adds the provided context to the existing error.
+    pub fn add_context(self, context: impl Into<Cow<'static, str>>) -> Self {
+        UniError {
+            inner: self.inner.add_context(context),
+        }
+    }
+
+    /// Calls the provided function with the error and the custom kind, and returns a new error with possibly a different kind.
+    pub fn kind_fn<F, K2: UniKind>(self, f: F) -> UniError<K2>
+    where
+        F: FnOnce(Self, K) -> UniError<K2>,
+        K: Clone,
+    {
+        let kind = self.kind_clone();
+        f(self, kind)
+    }
 }
 
 impl<K: UniKindCode> UniError<K> {
@@ -613,7 +847,7 @@ impl<K: UniKindCodes + ?Sized> UniError<K> {
     }
 }
 
-impl<K: Clone> UniError<K> {
+impl<K: Clone + ?Sized> UniError<K> {
     /// Returns a clone of the custom kind.
     pub fn kind_clone(&self) -> K {
         (*self.inner.kind).clone()

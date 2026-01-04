@@ -7,7 +7,7 @@ use core::{
     fmt::{Debug, Display},
 };
 
-use crate::error::{UniError, UniKind};
+use crate::error::{UniError, UniKind, UniKindCode, UniKindCodes};
 
 // FIXME: 'Any' shouldn't be necessary since Error has downcasting, but somehow we now depend on it.
 /// Standard [`Error`] trait with [`Any`] to allow downcasting.
@@ -221,6 +221,22 @@ impl CauseInner {
     }
 
     pub fn from_uni_error<K: UniKind>(cause: UniError<K>) -> CauseInner {
+        CauseInner::UniError(cause.into_dyn_kind())
+    }
+
+    pub fn from_dyn_error(cause: UniError<dyn UniKind>) -> CauseInner {
+        CauseInner::UniError(cause)
+    }
+
+    pub fn from_dyn_code_error<C: 'static>(
+        cause: UniError<dyn UniKindCode<Code = C>>,
+    ) -> CauseInner {
+        CauseInner::UniError(cause.into_dyn_kind())
+    }
+
+    pub fn from_dyn_codes_error<C: 'static, C2: 'static>(
+        cause: UniError<dyn UniKindCodes<Code = C, Code2 = C2>>,
+    ) -> CauseInner {
         CauseInner::UniError(cause.into_dyn_kind())
     }
 }
