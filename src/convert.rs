@@ -419,6 +419,29 @@ impl<C: 'static, C2: 'static, K2: UniKind, T> ResultContext<K2, T>
     }
 }
 
+// *** ResultContextFn ***
+
+/// A trait for wrapping an existing result error with a additional kind.
+pub trait ResultContextFn<K, K2, T> {
+    /// Wraps the existing result error with the provided kind.
+    fn kind_fn<F>(self, f: F) -> UniResult<T, K2>
+    where
+        F: FnOnce(UniError<K>, K) -> UniError<K2>,
+        K: Clone,
+        Self: Sized;
+}
+
+impl<K, K2, T> ResultContextFn<K, K2, T> for UniResult<T, K> {
+    fn kind_fn<F>(self, f: F) -> UniResult<T, K2>
+    where
+        F: FnOnce(UniError<K>, K) -> UniError<K2>,
+        K: Clone,
+        Self: Sized,
+    {
+        self.map_err(|err| err.kind_fn(f))
+    }
+}
+
 // *** ErrorContextDisplay ***
 
 /// A trait for wrapping an existing error with a additional context (for [`Display`] types).

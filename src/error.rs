@@ -801,16 +801,6 @@ impl<K: UniKind + ?Sized> UniError<K> {
             inner: self.inner.add_context(context),
         }
     }
-
-    /// Calls the provided function with the error and the custom kind, and returns a new error with possibly a different kind.
-    pub fn kind_fn<F, K2: UniKind>(self, f: F) -> UniError<K2>
-    where
-        F: FnOnce(Self, K) -> UniError<K2>,
-        K: Clone,
-    {
-        let kind = self.kind_clone();
-        f(self, kind)
-    }
 }
 
 impl<K: UniKindCode> UniError<K> {
@@ -847,10 +837,19 @@ impl<K: UniKindCodes + ?Sized> UniError<K> {
     }
 }
 
-impl<K: Clone + ?Sized> UniError<K> {
+impl<K: Clone> UniError<K> {
     /// Returns a clone of the custom kind.
     pub fn kind_clone(&self) -> K {
         (*self.inner.kind).clone()
+    }
+
+    /// Calls the provided function with the error and the custom kind, and returns a new error with possibly a different kind.
+    pub fn kind_fn<F, K2>(self, f: F) -> UniError<K2>
+    where
+        F: FnOnce(Self, K) -> UniError<K2>,
+    {
+        let kind = self.kind_clone();
+        f(self, kind)
     }
 }
 
