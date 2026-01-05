@@ -146,8 +146,8 @@ impl<K: Clone> UniError<K> {
         self.inner.kind_clone()
     }
 
-    /// Calls the provided function with the error and the custom kind, and returns a new error with possibly a different kind.
-    pub fn kind_fn<F, K2>(self, f: F) -> UniError<K2>
+    /// Maps the error to a new error with possibly a different kind.
+    pub fn map_kind<F, K2>(self, f: F) -> UniError<K2>
     where
         F: FnOnce(Self, K) -> UniError<K2>,
     {

@@ -19,7 +19,7 @@ mod readme_tests {}
 
 pub use cause::Cause;
 pub use convert::{
-    ErrorContext, ErrorContextDisplay, ResultContext, ResultContextDisplay, ResultContextFn,
+    ErrorContext, ErrorContextDisplay, MapKind, ResultContext, ResultContextDisplay,
 };
 pub use error::*;
 pub use kind::*;
