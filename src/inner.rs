@@ -220,24 +220,40 @@ impl<C: 'static, C2: 'static> UniErrorInner<dyn UniKindCodes<Code = C, Code2 = C
 
 impl<K: UniKind + ?Sized> Display for UniErrorInner<K> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if let Some(context) = &self.context {
-            write!(f, "{}", context)?;
+        let mut context_written = false;
+        let mut kind_context_written = false;
+
+        // *** Context ***
+        if let Some(context) = &self.context
+            && !context.is_empty()
+        {
+            f.write_str(context)?;
+            context_written = true;
         }
 
         let cause = self.cause.as_ref().map(|inner| Cause::from_inner(inner));
-        let context = self.kind.context(cause);
-        if let Some(context) = context.as_ref() {
-            if self.context.is_some() {
-                write!(f, ": ")?;
+
+        // *** Kind Context ***
+        if let Some(kind_context) = self.kind.context(cause).as_ref()
+            && !kind_context.is_empty()
+        {
+            if context_written {
+                f.write_str(": ")?;
             }
-            write!(f, "{}", context)?;
+            f.write_str(kind_context)?;
+            kind_context_written = true;
         }
 
+        // *** Cause ***
         if let Some(cause) = &self.prev_cause() {
-            if self.context.is_some() || context.is_some() {
-                write!(f, ": ")?;
+            let cause = cause.to_string();
+
+            if !cause.is_empty() {
+                if context_written || kind_context_written {
+                    f.write_str(": ")?;
+                }
+                f.write_str(&cause)?;
             }
-            write!(f, "{}", cause)?;
         }
 
         Ok(())
