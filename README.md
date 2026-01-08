@@ -66,7 +66,7 @@ use uni_error::*;
 
 fn do_something() -> SimpleResult<Vec<u8>> {
     std::fs::read("/tmp/nonexist")
-        .context("Oops... I wanted this to work!")
+        .kind_default_context("Oops... I wanted this to work!")
 }
 
 fn main() {
@@ -86,7 +86,7 @@ fn do_something() -> Result<(), String> {
 }
 
 fn try_do_something() -> SimpleResult<()> {
-    do_something().context_disp("Oops... I wanted this to work!")
+    do_something().kind_default_context_disp("Oops... I wanted this to work!")
 }
 
 fn main() {
@@ -138,22 +138,29 @@ If the error type implements `std::error::Error`, or is `UniError<T>` --> `UniEr
 result?
 ```
 
-`UniError<T>` --> `UniError<U>` (`U` must implement `Default`):
+`UniError<T>` --> `UniError<U>` (`U` implements `Default`):
 
 ```text
-result.wrap()?
+result.kind_default()?
 ```
+
+`UniError<T>` --> `UniError<U>` (`U` implements `From<T>`):
+
+```text
+result.kind_into()?
+```
+
 
 `Option<V>`:
 
 ```text
-option.wrap()?
+option.kind_default()?
 ```
 
 Fallback for `std::fmt::Display` types:
 
 ```text
-result.wrap_disp()?
+result.kind_default_disp()?
 ```
 
 ### How does equality work?

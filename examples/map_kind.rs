@@ -33,7 +33,7 @@ fn try_something() -> UniResult<(), ErrKind1> {
 }
 
 fn try_something_else() -> UniResult<(), ErrKind2> {
-    try_something().map_kind(|err, old_kind| {
+    try_something().kind_map(|err, old_kind| {
         err.kind_context(ErrKind2::ErrKind1(old_kind), "something bad happened")
     })
 }

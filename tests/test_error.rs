@@ -98,9 +98,9 @@ fn test_display() {
 
 #[test]
 fn test_simple_error_partial_eq() {
-    let error1 = SimpleError::from_context("test");
-    let error2 = SimpleError::from_context("test");
-    let error3 = SimpleError::from_context("test2");
+    let error1 = SimpleError::from_kind_default_context("test");
+    let error2 = SimpleError::from_kind_default_context("test");
+    let error3 = SimpleError::from_kind_default_context("test2");
 
     assert_eq!(error1, error2);
     assert_ne!(error1, error3);

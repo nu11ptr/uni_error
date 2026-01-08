@@ -8,8 +8,8 @@ use crate::common::TestKind;
 
 #[test]
 fn test_wrap_simple_to_uni() {
-    let err1 = SimpleError::from_context("test");
-    let err2: UniError<TestKind> = err1.clone().wrap();
+    let err1 = SimpleError::from_kind_default_context("test");
+    let err2: UniError<TestKind> = err1.clone().kind_default();
     let prev = err2.prev_cause().unwrap();
 
     assert!(matches!(prev, Cause::UniError(_)));
@@ -24,7 +24,7 @@ fn test_wrap_simple_to_uni() {
 #[test]
 fn test_wrap_uni_to_simple() {
     let err1 = UniError::from_kind_context(TestKind::Test, "test");
-    let err2: SimpleError = err1.clone().wrap();
+    let err2: SimpleError = err1.clone().kind_default();
     let prev = err2.prev_cause().unwrap();
 
     assert!(matches!(prev, Cause::UniError(_)));
@@ -110,7 +110,7 @@ fn test_wrap_error_to_uni() {
 #[test]
 fn test_wrap_display_to_uni() {
     let err1 = "test";
-    let err2: UniError<TestKind> = err1.wrap_disp();
+    let err2: UniError<TestKind> = err1.kind_default_disp();
     let prev = err2.prev_cause().unwrap();
 
     assert!(matches!(prev, Cause::UniDisplay(_)));

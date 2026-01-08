@@ -14,11 +14,11 @@ fn test_cause_with_error_root() {
     // Second level error (will be wrapped natively)
     let err2 = TestError::new("test2".to_string(), Some(Box::new(err1.clone())));
     // First level uni error (will be wrapped with context)
-    let err3: SimpleError = err2.clone().context("context");
+    let err3: SimpleError = err2.clone().kind_default_context("context");
     // Second level uni error (will be wrapped with kind)
     let err4: UniError<TestKind> = err3.clone().kind(TestKind::Test);
     // Third level error (will be wrapped with default kind)
-    let err5: SimpleError = err4.clone().wrap();
+    let err5: SimpleError = err4.clone().kind_default();
 
     let mut chain = err5.chain();
     let cause4 = chain.next().unwrap();
@@ -80,7 +80,7 @@ fn test_cause_with_error_root() {
 #[test]
 fn test_cause_with_display_root() {
     let err1 = "special test";
-    let err2: SimpleError = err1.context_disp("special context");
+    let err2: SimpleError = err1.kind_default_context_disp("special context");
     let err3: UniError<TestKind> = err2.clone().kind(TestKind::Test);
 
     let mut chain = err3.chain();
