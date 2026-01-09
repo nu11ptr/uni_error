@@ -413,7 +413,7 @@ impl<C: 'static> UniError<dyn UniKindCode<Code = C>> {
     }
 
     /// Wraps the existing error with no additional context and a default kind.
-    pub fn kind_default<K2: UniKind>(self) -> UniError<K2>
+    pub fn kind_default<K2>(self) -> UniError<K2>
     where
         K2: Default,
     {

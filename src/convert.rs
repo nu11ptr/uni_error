@@ -353,7 +353,7 @@ impl<K, T> ResultContext<K, T> for Option<T> {
     }
 }
 
-impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, K> {
+impl<K: UniKind, K2, T> ResultContext<K2, T> for UniResult<T, K> {
     fn kind(self, kind: K2) -> UniResult<T, K2> {
         self.map_err(|err| err.kind(kind))
     }
@@ -402,7 +402,7 @@ impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, K> {
     }
 }
 
-impl<K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKind> {
+impl<K2, T> ResultContext<K2, T> for UniResult<T, dyn UniKind> {
     fn kind(self, kind: K2) -> UniResult<T, K2> {
         self.map_err(|err| err.kind(kind))
     }
@@ -450,7 +450,7 @@ impl<K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKind> {
     }
 }
 
-impl<C: 'static, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKindCode<Code = C>> {
+impl<C: 'static, K2, T> ResultContext<K2, T> for UniResult<T, dyn UniKindCode<Code = C>> {
     fn kind(self, kind: K2) -> UniResult<T, K2> {
         self.map_err(|err| err.kind(kind))
     }
@@ -498,7 +498,7 @@ impl<C: 'static, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKi
     }
 }
 
-impl<C: 'static, C2: 'static, K2: UniKind, T> ResultContext<K2, T>
+impl<C: 'static, C2: 'static, K2, T> ResultContext<K2, T>
     for UniResult<T, dyn UniKindCodes<Code = C, Code2 = C2>>
 {
     fn kind(self, kind: K2) -> UniResult<T, K2> {

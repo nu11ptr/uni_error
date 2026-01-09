@@ -246,7 +246,7 @@ impl<K: UniKind + ?Sized> Display for UniErrorInner<K> {
 
         // *** Cause ***
         if let Some(cause) = &self.prev_cause() {
-            let cause = cause.to_string();
+            let cause = <Cause as alloc::string::ToString>::to_string(cause);
 
             if !cause.is_empty() {
                 if context_written || kind_context_written {
