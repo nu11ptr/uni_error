@@ -233,37 +233,21 @@ pub trait ResultContext<K, T> {
     /// Wraps the existing result error with the provided kind.
     fn kind_fn<F>(self, kind: F) -> UniResult<T, K>
     where
-        F: FnOnce(&Self) -> K,
-        Self: Sized,
-    {
-        let kind = kind(&self);
-        self.kind(kind)
-    }
+        F: FnOnce() -> K;
 
     /// Wraps the existing result error with the provided context and a default kind.
     fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K>
     where
-        F: FnOnce(&Self) -> S,
+        F: FnOnce() -> S,
         S: Into<Cow<'static, str>>,
-        K: Default,
-        Self: Sized,
-    {
-        let context = context(&self);
-        self.kind_default_context(context)
-    }
+        K: Default;
 
     /// Wraps the existing result error with the provided kind and context.
     fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K>
     where
-        F: FnOnce(&Self) -> K,
-        F2: FnOnce(&Self) -> S,
-        S: Into<Cow<'static, str>>,
-        Self: Sized,
-    {
-        let kind = kind(&self);
-        let context = context(&self);
-        self.kind_context(kind, context)
-    }
+        F: FnOnce() -> K,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>;
 
     /// Wraps the existing result error with no additional context and a default kind.
     fn kind_default(self) -> UniResult<T, K>
@@ -285,6 +269,31 @@ impl<K, T, E: UniStdError> ResultContext<K, T> for Result<T, E> {
 
     fn kind_context(self, kind: K, context: impl Into<Cow<'static, str>>) -> UniResult<T, K> {
         self.map_err(|err| err.kind_context(kind, context))
+    }
+
+    fn kind_fn<F>(self, kind: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> K,
+    {
+        self.map_err(|err| err.kind(kind()))
+    }
+
+    fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K: Default,
+    {
+        self.map_err(|err| err.kind_default_context(context()))
+    }
+
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K>
+    where
+        F: FnOnce() -> K,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.kind_context(kind(), context()))
     }
 
     fn kind_default(self) -> UniResult<T, K>
@@ -311,6 +320,31 @@ impl<K, T> ResultContext<K, T> for Option<T> {
         self.ok_or_else(|| UniError::from_kind_context(kind, context))
     }
 
+    fn kind_fn<F>(self, kind: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> K,
+    {
+        self.ok_or_else(|| UniError::from_kind(kind()))
+    }
+
+    fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K: Default,
+    {
+        self.ok_or_else(|| UniError::from_kind_default_context(context()))
+    }
+
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K>
+    where
+        F: FnOnce() -> K,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.ok_or_else(|| UniError::from_kind_context(kind(), context()))
+    }
+
     fn kind_default(self) -> UniResult<T, K>
     where
         K: Default,
@@ -333,6 +367,31 @@ impl<K: UniKind, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, K> {
 
     fn kind_context(self, kind: K2, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2> {
         self.map_err(|err| err.kind_context(kind, context))
+    }
+
+    fn kind_fn<F>(self, kind: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+    {
+        self.map_err(|err| err.kind(kind()))
+    }
+
+    fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K2: Default,
+    {
+        self.map_err(|err| err.kind_default_context(context()))
+    }
+
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.kind_context(kind(), context()))
     }
 
     fn kind_default(self) -> UniResult<T, K2>
@@ -359,6 +418,30 @@ impl<K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKind> {
         self.map_err(|err| err.kind_context(kind, context))
     }
 
+    fn kind_fn<F>(self, kind: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+    {
+        self.map_err(|err| err.kind(kind()))
+    }
+
+    fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K2: Default,
+    {
+        self.map_err(|err| err.kind_default_context(context()))
+    }
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.kind_context(kind(), context()))
+    }
+
     fn kind_default(self) -> UniResult<T, K2>
     where
         K2: Default,
@@ -381,6 +464,30 @@ impl<C: 'static, K2: UniKind, T> ResultContext<K2, T> for UniResult<T, dyn UniKi
 
     fn kind_context(self, kind: K2, context: impl Into<Cow<'static, str>>) -> UniResult<T, K2> {
         self.map_err(|err| err.kind_context(kind, context))
+    }
+
+    fn kind_fn<F>(self, kind: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+    {
+        self.map_err(|err| err.kind(kind()))
+    }
+
+    fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K2: Default,
+    {
+        self.map_err(|err| err.kind_default_context(context()))
+    }
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.kind_context(kind(), context()))
     }
 
     fn kind_default(self) -> UniResult<T, K2>
@@ -409,6 +516,30 @@ impl<C: 'static, C2: 'static, K2: UniKind, T> ResultContext<K2, T>
         self.map_err(|err| err.kind_context(kind, context))
     }
 
+    fn kind_fn<F>(self, kind: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+    {
+        self.map_err(|err| err.kind(kind()))
+    }
+
+    fn kind_default_context_fn<F, S>(self, context: F) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K2: Default,
+    {
+        self.map_err(|err| err.kind_default_context(context()))
+    }
+    fn kind_context_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K2>
+    where
+        F: FnOnce() -> K2,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.kind_context(kind(), context()))
+    }
+
     fn kind_default(self) -> UniResult<T, K2>
     where
         K2: Default,
@@ -425,8 +556,7 @@ pub trait UniResultContext<K, K2, T> {
     fn kind_map<F>(self, f: F) -> UniResult<T, K2>
     where
         F: FnOnce(UniError<K>, K) -> UniError<K2>,
-        K: Clone,
-        Self: Sized;
+        K: Clone;
 
     /// Wraps the existing result error with an autoconverted kind and no additional context.
     fn kind_into(self) -> UniResult<T, K2>
@@ -451,7 +581,6 @@ impl<K: UniKind, K2, T> UniResultContext<K, K2, T> for UniResult<T, K> {
     where
         F: FnOnce(UniError<K>, K) -> UniError<K2>,
         K: Clone,
-        Self: Sized,
     {
         self.map_err(|err| err.kind_map(f))
     }
@@ -553,39 +682,23 @@ pub trait ResultContextDisplay<K, T> {
     fn kind_context_disp(self, kind: K, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>;
 
     /// Wraps the existing result error with the provided kind.
-    fn kind_fn_disp<F>(self, kind: F) -> UniResult<T, K>
+    fn kind_disp_fn<F>(self, kind: F) -> UniResult<T, K>
     where
-        F: FnOnce(&Self) -> K,
-        Self: Sized,
-    {
-        let kind = kind(&self);
-        self.kind_disp(kind)
-    }
+        F: FnOnce() -> K;
 
     /// Wraps the existing result error with the provided context and a default kind.
-    fn kind_default_context_fn_disp<F, S>(self, context: F) -> UniResult<T, K>
+    fn kind_default_context_disp_fn<F, S>(self, context: F) -> UniResult<T, K>
     where
-        F: FnOnce(&Self) -> S,
+        F: FnOnce() -> S,
         S: Into<Cow<'static, str>>,
-        K: Default,
-        Self: Sized,
-    {
-        let context = context(&self);
-        self.kind_default_context_disp(context)
-    }
+        K: Default;
 
     /// Wraps the existing result error with the provided kind and context.
-    fn kind_context_fn_disp<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K>
+    fn kind_context_disp_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K>
     where
-        F: FnOnce(&Self) -> K,
-        F2: FnOnce(&Self) -> S,
-        S: Into<Cow<'static, str>>,
-        Self: Sized,
-    {
-        let kind = kind(&self);
-        let context = context(&self);
-        self.kind_context_disp(kind, context)
-    }
+        F: FnOnce() -> K,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>;
 
     /// Wraps the existing result error with no additional context and a default kind (for [`Display`] types).
     fn kind_default_disp(self) -> UniResult<T, K>
@@ -607,6 +720,31 @@ impl<K, T, D: UniDisplay> ResultContextDisplay<K, T> for Result<T, D> {
 
     fn kind_context_disp(self, kind: K, context: impl Into<Cow<'static, str>>) -> UniResult<T, K> {
         self.map_err(|err| err.kind_context_disp(kind, context))
+    }
+
+    fn kind_disp_fn<F>(self, kind: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> K,
+    {
+        self.map_err(|err| err.kind_disp(kind()))
+    }
+
+    fn kind_default_context_disp_fn<F, S>(self, context: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+        K: Default,
+    {
+        self.map_err(|err| err.kind_default_context_disp(context()))
+    }
+
+    fn kind_context_disp_fn<F, F2, S>(self, kind: F, context: F2) -> UniResult<T, K>
+    where
+        F: FnOnce() -> K,
+        F2: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.kind_context_disp(kind(), context()))
     }
 
     fn kind_default_disp(self) -> UniResult<T, K>
