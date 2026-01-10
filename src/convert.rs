@@ -552,6 +552,12 @@ impl<C: 'static, C2: 'static, K2, T> ResultContext<K2, T>
 
 /// A trait for wrapping an existing UniResult with additional context.
 pub trait UniResultContext<K, K2, T> {
+    /// Adds the provided context to the existing result error.
+    fn add_context<F, S>(self, context: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>;
+
     /// Maps the existing result error wit the existing kind and returns a new or wrapped error.
     fn kind_map<F>(self, f: F) -> UniResult<T, K2>
     where
@@ -577,6 +583,14 @@ pub trait UniResultContext<K, K2, T> {
 }
 
 impl<K: UniKind, K2, T> UniResultContext<K, K2, T> for UniResult<T, K> {
+    fn add_context<F, S>(self, context: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.add_context(context()))
+    }
+
     fn kind_map<F>(self, f: F) -> UniResult<T, K2>
     where
         F: FnOnce(UniError<K>, K) -> UniError<K2>,
