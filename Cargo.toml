@@ -1,6 +1,6 @@
 [package]
 name = "uni_error"
-version = "0.11.0"
+version = "0.11.1"
 authors = ["Scott Meeuwsen <smeeuwsen@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "A simple, universal error type for Rust"
