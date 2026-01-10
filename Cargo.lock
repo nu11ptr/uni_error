@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "uni_error"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "axum",
  "http",
