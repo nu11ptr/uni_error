@@ -553,7 +553,10 @@ impl<C: 'static, C2: 'static, K2, T> ResultContext<K2, T>
 /// A trait for wrapping an existing UniResult with additional context.
 pub trait UniResultContext<K, K2, T> {
     /// Adds the provided context to the existing result error.
-    fn add_context<F, S>(self, context: F) -> UniResult<T, K>
+    fn add_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>;
+
+    /// Adds the provided context to the existing result error.
+    fn add_context_fn<F, S>(self, context: F) -> UniResult<T, K>
     where
         F: FnOnce() -> S,
         S: Into<Cow<'static, str>>;
@@ -583,7 +586,11 @@ pub trait UniResultContext<K, K2, T> {
 }
 
 impl<K: UniKind, K2, T> UniResultContext<K, K2, T> for UniResult<T, K> {
-    fn add_context<F, S>(self, context: F) -> UniResult<T, K>
+    fn add_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K> {
+        self.map_err(|err| err.add_context(context))
+    }
+
+    fn add_context_fn<F, S>(self, context: F) -> UniResult<T, K>
     where
         F: FnOnce() -> S,
         S: Into<Cow<'static, str>>,
