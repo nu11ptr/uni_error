@@ -20,6 +20,7 @@ mod readme_tests {}
 pub use cause::Cause;
 pub use convert::{
     ErrorContext, ErrorContextDisplay, ResultContext, ResultContextDisplay, UniResultContext,
+    UniResultContextModify,
 };
 pub use error::*;
 pub use kind::*;

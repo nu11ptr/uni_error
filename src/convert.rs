@@ -44,7 +44,7 @@ impl<K: UniKindCodes> From<UniError<K>>
 
 // Generic - in case the user isn't using Axum or wants to modify before returning.
 #[cfg(any(feature = "http_code", feature = "axum_code"))]
-impl<K: UniKindCode<Code = http::StatusCode>> From<UniError<K>>
+impl<K: UniKindCode<Code = http::StatusCode> + ?Sized> From<UniError<K>>
     for (http::StatusCode, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
@@ -57,7 +57,7 @@ impl<K: UniKindCode<Code = http::StatusCode>> From<UniError<K>>
 
 // Generic - in case the user isn't using Axum or wants to modify before returning.
 #[cfg(any(feature = "http_code2", feature = "axum_code2"))]
-impl<K: UniKindCodes<Code2 = http::StatusCode>> From<UniError<K>>
+impl<K: UniKindCodes<Code2 = http::StatusCode> + ?Sized> From<UniError<K>>
     for (http::StatusCode, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
@@ -70,7 +70,7 @@ impl<K: UniKindCodes<Code2 = http::StatusCode>> From<UniError<K>>
 
 // Generic - in case the user wants to modify before returning.
 #[cfg(feature = "tonic_code")]
-impl<K: UniKindCode<Code = tonic::Code>> From<UniError<K>>
+impl<K: UniKindCode<Code = tonic::Code> + ?Sized> From<UniError<K>>
     for (tonic::Code, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
@@ -82,7 +82,7 @@ impl<K: UniKindCode<Code = tonic::Code>> From<UniError<K>>
 }
 
 #[cfg(feature = "tonic_code")]
-impl<K: UniKindCode<Code = tonic::Code>> From<UniError<K>> for tonic::Status {
+impl<K: UniKindCode<Code = tonic::Code> + ?Sized> From<UniError<K>> for tonic::Status {
     fn from(err: UniError<K>) -> Self {
         tonic::Status::new(
             err.typed_code(),
@@ -93,7 +93,7 @@ impl<K: UniKindCode<Code = tonic::Code>> From<UniError<K>> for tonic::Status {
 
 // Generic - in case the user wants to modify before returning.
 #[cfg(feature = "tonic_code2")]
-impl<K: UniKindCodes<Code2 = tonic::Code>> From<UniError<K>>
+impl<K: UniKindCodes<Code2 = tonic::Code> + ?Sized> From<UniError<K>>
     for (tonic::Code, alloc::string::String)
 {
     fn from(err: UniError<K>) -> Self {
@@ -105,7 +105,7 @@ impl<K: UniKindCodes<Code2 = tonic::Code>> From<UniError<K>>
 }
 
 #[cfg(feature = "tonic_code2")]
-impl<K: UniKindCodes<Code2 = tonic::Code>> From<UniError<K>> for tonic::Status {
+impl<K: UniKindCodes<Code2 = tonic::Code> + ?Sized> From<UniError<K>> for tonic::Status {
     fn from(err: UniError<K>) -> Self {
         tonic::Status::new(
             err.typed_code2(),
@@ -117,7 +117,9 @@ impl<K: UniKindCodes<Code2 = tonic::Code>> From<UniError<K>> for tonic::Status {
 // *** IntoResponse ***
 
 #[cfg(feature = "axum_code")]
-impl<K: UniKindCode<Code = http::StatusCode>> axum::response::IntoResponse for UniError<K> {
+impl<K: UniKindCode<Code = http::StatusCode> + ?Sized> axum::response::IntoResponse
+    for UniError<K>
+{
     fn into_response(self) -> axum::response::Response {
         (
             self.typed_code(),
@@ -128,7 +130,9 @@ impl<K: UniKindCode<Code = http::StatusCode>> axum::response::IntoResponse for U
 }
 
 #[cfg(feature = "axum_code2")]
-impl<K: UniKindCodes<Code2 = http::StatusCode>> axum::response::IntoResponse for UniError<K> {
+impl<K: UniKindCodes<Code2 = http::StatusCode> + ?Sized> axum::response::IntoResponse
+    for UniError<K>
+{
     fn into_response(self) -> axum::response::Response {
         (
             self.typed_code2(),
@@ -548,10 +552,10 @@ impl<C: 'static, C2: 'static, K2, T> ResultContext<K2, T>
     }
 }
 
-// *** UniResultContext ***
+// *** UniResultContextModify ***
 
-/// A trait for wrapping an existing UniResult with additional context.
-pub trait UniResultContext<K, K2, T> {
+/// A trait for modifying an existing UniResult with additional context.
+pub trait UniResultContextModify<K: ?Sized + 'static, T> {
     /// Adds the provided context to the existing result error.
     fn add_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K>;
 
@@ -560,7 +564,26 @@ pub trait UniResultContext<K, K2, T> {
     where
         F: FnOnce() -> S,
         S: Into<Cow<'static, str>>;
+}
 
+impl<K: ?Sized + 'static, T> UniResultContextModify<K, T> for UniResult<T, K> {
+    fn add_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K> {
+        self.map_err(|err| err.add_context(context))
+    }
+
+    fn add_context_fn<F, S>(self, context: F) -> UniResult<T, K>
+    where
+        F: FnOnce() -> S,
+        S: Into<Cow<'static, str>>,
+    {
+        self.map_err(|err| err.add_context(context()))
+    }
+}
+
+// *** UniResultContext ***
+
+/// A trait for wrapping an existing UniResult with additional context.
+pub trait UniResultContext<K, K2, T> {
     /// Maps the existing result error wit the existing kind and returns a new or wrapped error.
     fn kind_map<F>(self, f: F) -> UniResult<T, K2>
     where
@@ -586,18 +609,6 @@ pub trait UniResultContext<K, K2, T> {
 }
 
 impl<K: UniKind, K2, T> UniResultContext<K, K2, T> for UniResult<T, K> {
-    fn add_context(self, context: impl Into<Cow<'static, str>>) -> UniResult<T, K> {
-        self.map_err(|err| err.add_context(context))
-    }
-
-    fn add_context_fn<F, S>(self, context: F) -> UniResult<T, K>
-    where
-        F: FnOnce() -> S,
-        S: Into<Cow<'static, str>>,
-    {
-        self.map_err(|err| err.add_context(context()))
-    }
-
     fn kind_map<F>(self, f: F) -> UniResult<T, K2>
     where
         F: FnOnce(UniError<K>, K) -> UniError<K2>,
