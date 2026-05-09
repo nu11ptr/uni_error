@@ -114,6 +114,56 @@ impl<K: UniKindCodes<Code2 = tonic::Code> + ?Sized> From<UniError<K>> for tonic:
     }
 }
 
+// Generic - in case the user wants to modify before returning.
+#[cfg(feature = "connect_code")]
+impl<K: UniKindCode<Code = connectrpc::ErrorCode> + ?Sized> From<UniError<K>>
+    for (connectrpc::ErrorCode, alloc::string::String)
+{
+    fn from(err: UniError<K>) -> Self {
+        (
+            err.typed_code(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
+    }
+}
+
+#[cfg(feature = "connect_code")]
+impl<K: UniKindCode<Code = connectrpc::ErrorCode> + ?Sized> From<UniError<K>>
+    for connectrpc::ConnectError
+{
+    fn from(err: UniError<K>) -> Self {
+        connectrpc::ConnectError::new(
+            err.typed_code(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
+    }
+}
+
+// Generic - in case the user wants to modify before returning.
+#[cfg(feature = "connect_code2")]
+impl<K: UniKindCodes<Code2 = connectrpc::ErrorCode> + ?Sized> From<UniError<K>>
+    for (connectrpc::ErrorCode, alloc::string::String)
+{
+    fn from(err: UniError<K>) -> Self {
+        (
+            err.typed_code2(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
+    }
+}
+
+#[cfg(feature = "connect_code2")]
+impl<K: UniKindCodes<Code2 = connectrpc::ErrorCode> + ?Sized> From<UniError<K>>
+    for connectrpc::ConnectError
+{
+    fn from(err: UniError<K>) -> Self {
+        connectrpc::ConnectError::new(
+            err.typed_code2(),
+            <UniError<K> as alloc::string::ToString>::to_string(&err),
+        )
+    }
+}
+
 // *** IntoResponse ***
 
 #[cfg(feature = "axum_code")]

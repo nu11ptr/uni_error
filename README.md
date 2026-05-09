@@ -36,7 +36,7 @@ cargo add uni_error
 * Dereferences to stdlib [Error](https://doc.rust-lang.org/stable/std/error/trait.Error.html) trait
 * Implements [Clone](https://doc.rust-lang.org/stable/std/clone/trait.Clone.html)
 * Optional [Backtrace](https://doc.rust-lang.org/stable/std/backtrace/) capture
-* Optional: Auto convert into [http::StatusCode](https://docs.rs/http/latest/http/status/struct.StatusCode.html), [axum::response::Response](https://docs.rs/http/latest/http/response/struct.Response.html), or [tonic::Status](https://docs.rs/tonic/latest/tonic/struct.Status.html) for usage in an API
+* Optional: Auto convert into [http::StatusCode](https://docs.rs/http/latest/http/status/struct.StatusCode.html), [axum::response::Response](https://docs.rs/http/latest/http/response/struct.Response.html), [tonic::Status](https://docs.rs/tonic/latest/tonic/struct.Status.html), or [connectrpc::ConnectError](https://docs.rs/connectrpc/latest/connectrpc/error/struct.ConnectError.html) for usage in an API
 * No required dependencies
 * No macros
 * No `unsafe` (forbidden)

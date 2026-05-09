@@ -25,6 +25,9 @@ http_code2 = ["dep:http"]
 # Tonic specific Code/Status implementation. Enable one or the other, not both.
 tonic_code = ["dep:tonic"]
 tonic_code2 = ["dep:tonic"]
+# ConnectRPC specific ErrorCode/ConnectError implementation. Enable one or the other, not both.
+connect_code = ["dep:connectrpc"]
+connect_code2 = ["dep:connectrpc"]
 
 [dependencies.axum]
 # Axum hasn't hit 1.0 yet, and 0.1 and up implement IntoResponse the way we need, so make this as broad as possible.
@@ -40,6 +43,12 @@ optional = true
 [dependencies.tonic]
 # Tonic hasn't hit 1.0 yet, and 0.1 and up implement Code/Status the way we need, so make this as broad as possible.
 version = ">= 0.1, < 2.0"
+default-features = false
+optional = true
+
+[dependencies.connectrpc]
+# ConnectRPC hasn't hit 1.0 yet. The ErrorCode/ConnectError API used here is available from 0.2 onward.
+version = ">= 0.2, < 1.0"
 default-features = false
 optional = true
 
