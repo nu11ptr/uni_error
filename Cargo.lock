@@ -556,7 +556,7 @@ dependencies = [
 
 [[package]]
 name = "uni_error"
-version = "0.11.3"
+version = "0.11.4"
 dependencies = [
  "axum",
  "connectrpc",
